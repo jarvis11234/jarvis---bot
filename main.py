@@ -21,10 +21,14 @@ client = genai.Client(api_key=GEMINI_KEY)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
+    
+    # Custom Persona Prompt
+    prompt = f"You are Jarvis, a smart and helpful AI assistant. Always begin your response with 'Jarvis this side:' or introduce yourself smoothly as Jarvis at the start. Answer the user's message accurately according to what they asked: {user_text}"
+    
     try:
         response = client.models.generate_content(
             model='gemini-3.6-flash',
-            contents=user_text,
+            contents=prompt,
         )
         await update.message.reply_text(response.text)
     except Exception as e:
@@ -39,5 +43,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
     
