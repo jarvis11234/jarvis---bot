@@ -49,7 +49,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "content": user_text
                 }
             ],
-            model="llama-3.3-70b-versatile"
+            model="llama-3.1-8192"
         )
         
         reply = chat_completion.choices[0].message.content
@@ -67,4 +67,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-            
+                     
