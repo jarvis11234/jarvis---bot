@@ -1,7 +1,7 @@
 import os
 import threading
 from flask import Flask
-from google import genai
+from groq import Groq
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
@@ -15,22 +15,47 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Gemini Setup
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=GEMINI_KEY)
+# Groq Setup
+GROQ_KEY = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=GROQ_KEY)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     
-    # Custom Persona Prompt
-    prompt = f"You are Jarvis, a smart and helpful AI assistant. Always begin your response with 'Jarvis this side:' or introduce yourself smoothly as Jarvis at the start. Answer the user's message accurately according to what they asked: {user_text}"
+    # Check if 'jarvis' is mentioned in the message
+    is_jarvis_called = "jarvis" in user_text.lower()
     
-    try:
-        response = client.models.generate_content(
-            model='gemini-3.6-flash',
-            contents=prompt,
+    # Custom instructions based on whether Jarvis was called specifically
+    if is_jarvis_called:
+        system_prompt = (
+            "You are Jarvis, a highly intelligent AI assistant. "
+            "Since the user specifically called you, ALWAYS start your response with: "
+            "'At your service sir, ' followed by your response to their query."
         )
-        await update.message.reply_text(response.text)
+    else:
+        system_prompt = (
+            "You are Jarvis, a smart and helpful AI assistant. "
+            "Answer the user's message accurately and politely."
+        )
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_text,
+                }
+            ],
+            model="llama-3.3-70b-versatile",
+        )
+        
+        reply = chat_completion.choices[0].message.content
+        await update.message.reply_text(reply)
+        
     except Exception as e:
         print(f"Error: {e}")
         await update.message.reply_text(f"Jarvis Error: {e}")
@@ -43,4 +68,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
+            
