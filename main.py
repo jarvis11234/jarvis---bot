@@ -1,56 +1,42 @@
-from flask import Flask
-import threading
 import os
+import threading
+from flask import Flask
+import google.generativeai as genai
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
+# Render Fake Server
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Jarvis is alive!"
+    return "Jarvis is Alive!"
 
-def run():
+def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-threading.Thread(target=run).start()
+# Gemini Setup
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-import os
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
-from google import genai
-
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-BOT_TRIGGER_NAME = os.environ.get("BOT_TRIGGER_NAME", "jarvis").lower()
-
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
-
+# Telegram Bot Handler
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-
-    text = update.message.text
-    chat_type = update.message.chat.type
-
-    if chat_type == "private" or BOT_TRIGGER_NAME in text.lower():
-        prompt = f"You are Jarvis, a smart AI assistant. Reply helpfully to: {text}"
-        
-        try:
-            response = ai_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
-            reply_text = response.text
-        except Exception as e:
-            reply_text = "Sorry, I am facing an issue right now."
-
-        await update.message.reply_text(reply_text)
-
-def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Jarvis Bot Started Successfully!")
-    app.run_polling()
+    user_text = update.message.text
+    try:
+        response = model.generate_content(user_text)
+        await update.message.reply_text(response.text)
+    except Exception as e:
+        print(f"Error: {e}")
+        await update.message.reply_text("Sorry, I am facing an issue right now.")
 
 if __name__ == '__main__':
-    main()
+    threading.Thread(target=run_flask).start()
+    
+    TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    application.run_polling()
+    
