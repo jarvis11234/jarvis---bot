@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 import time
 from flask import Flask
@@ -26,6 +27,11 @@ AVAILABLE_MODELS = [
     "openai/gpt-oss-20b"
 ]
 
+def clean_thinking_process(text: str) -> str:
+    # <think>...</think> tag ke beech ki saari thinking remove kar dega
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    return cleaned.strip()
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     if not user_text:
@@ -48,7 +54,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = None
     last_error = None
 
-    # Retry loop with fallback models
     for model_name in AVAILABLE_MODELS:
         for attempt in range(2):
             try:
@@ -60,7 +65,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     model=model_name,
                     timeout=15.0
                 )
-                reply = chat_completion.choices[0].message.content
+                raw_reply = chat_completion.choices[0].message.content
+                reply = clean_thinking_process(raw_reply)
                 break
             except Exception as e:
                 last_error = e
