@@ -25,7 +25,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check if 'jarvis' is mentioned in the message
     is_jarvis_called = "jarvis" in user_text.lower()
     
-    # Custom instructions based on whether Jarvis was called specifically
     if is_jarvis_called:
         system_prompt = (
             "You are Jarvis, a highly intelligent AI assistant. "
@@ -50,7 +49,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "content": user_text,
                 }
             ],
-            model="llama-3.3-70b-versatile",
+            model="llama3-70b-8192",  # Updated valid Groq model
         )
         
         reply = chat_completion.choices[0].message.content
@@ -68,4 +67,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-            
+        
