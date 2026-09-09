@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 from flask import Flask
 from groq import Groq
 from telegram import Update
@@ -19,7 +20,6 @@ def run_flask():
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=GROQ_KEY)
 
-# Screenshot ke mutabiq new supported models
 AVAILABLE_MODELS = [
     "qwen/qwen3.6-27b",
     "openai/gpt-oss-120b",
@@ -28,7 +28,9 @@ AVAILABLE_MODELS = [
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    
+    if not user_text:
+        return
+
     is_jarvis_called = "jarvis" in user_text.lower()
     
     if is_jarvis_called:
@@ -46,20 +48,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = None
     last_error = None
 
+    # Retry loop with fallback models
     for model_name in AVAILABLE_MODELS:
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_text}
-                ],
-                model=model_name
-            )
-            reply = chat_completion.choices[0].message.content
+        for attempt in range(2):
+            try:
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_text}
+                    ],
+                    model=model_name,
+                    timeout=15.0
+                )
+                reply = chat_completion.choices[0].message.content
+                break
+            except Exception as e:
+                last_error = e
+                time.sleep(1)
+        if reply:
             break
-        except Exception as e:
-            last_error = e
-            continue
 
     if reply:
         await update.message.reply_text(reply)
@@ -75,4 +82,3 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
