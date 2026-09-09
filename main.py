@@ -28,7 +28,6 @@ AVAILABLE_MODELS = [
 ]
 
 def clean_thinking_process(text: str) -> str:
-    # <think>...</think> tag ke beech ki saari thinking remove kar dega
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned.strip()
 
@@ -37,19 +36,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    is_jarvis_called = "jarvis" in user_text.lower()
-    
-    if is_jarvis_called:
-        system_prompt = (
-            "You are Jarvis, a highly intelligent AI assistant. "
-            "Since the user specifically called you, ALWAYS start your response with: "
-            "'At your service sir, ' followed by your response to their query."
-        )
-    else:
-        system_prompt = (
-            "You are Jarvis, a smart and helpful AI assistant. "
-            "Answer the user's message accurately and politely."
-        )
+    # Jab tak 'jarvis' naam na ho, tab tak bot ignore karega
+    if "jarvis" not in user_text.lower():
+        return
+
+    system_prompt = (
+        "You are Jarvis, a highly intelligent AI assistant. "
+        "Since the user specifically called you, ALWAYS start your response with: "
+        "'At your service sir, ' followed by your response to their query."
+    )
 
     reply = None
     last_error = None
