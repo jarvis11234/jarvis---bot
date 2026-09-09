@@ -46,11 +46,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 },
                 {
                     "role": "user",
-                    "content": user_text,
+                    "content": user_text
                 }
             ],
-            model="llama3-70b-8192",
-            ,  # Updated valid Groq model
+            model="llama-3.3-70b-versatile"
         )
         
         reply = chat_completion.choices[0].message.content
@@ -68,4 +67,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-        
+            
