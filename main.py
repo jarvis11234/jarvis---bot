@@ -49,7 +49,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "content": user_text,
                 }
             ],
-            model="llama3-70b-8192",  # Updated valid Groq model
+            model="llama3-70b-8192",
+            ,  # Updated valid Groq model
         )
         
         reply = chat_completion.choices[0].message.content
