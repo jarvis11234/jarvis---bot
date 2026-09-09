@@ -19,12 +19,11 @@ def run_flask():
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=GROQ_KEY)
 
-# List of active Groq models for fallback
+# Screenshot ke mutabiq new supported models
 AVAILABLE_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama-3.2-11b-vision-preview",
-    "llama3-8b-8192",
-    "mixtral-8x7b-32768"
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b"
 ]
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,7 +43,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Answer the user's message accurately and politely."
         )
 
-    # Try models one by one until one works
     reply = None
     last_error = None
 
@@ -58,10 +56,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 model=model_name
             )
             reply = chat_completion.choices[0].message.content
-            break  # Stop loop if request succeeds
+            break
         except Exception as e:
             last_error = e
-            continue  # Try next model
+            continue
 
     if reply:
         await update.message.reply_text(reply)
