@@ -18,14 +18,15 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Self-Ping thread to keep Render active 24/7
+# Background ping thread to keep Render active
 def keep_alive():
-    # APNA RENDER URL YAHAN BADLEIN
-    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://jarvis-bot.onrender.com")
+    url = os.environ.get("RENDER_EXTERNAL_URL")
+    if not url:
+        return
     while True:
-        time.sleep(600)  # Har 10 minute (600 sec) mein ping karega
+        time.sleep(600)  # Ping every 10 minutes
         try:
-            requests.get(RENDER_URL)
+            requests.get(url)
             print("Keep-alive ping sent successfully.")
         except Exception as e:
             print(f"Keep-alive ping failed: {e}")
@@ -49,7 +50,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    # Only respond if 'jarvis' is mentioned
+    # Trigger only on 'jarvis'
     if "jarvis" not in user_text.lower():
         return
 
@@ -89,10 +90,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Jarvis Error: {last_error}")
 
 if __name__ == '__main__':
-    # Start Flask Web Server
     threading.Thread(target=run_flask, daemon=True).start()
-    
-    # Start Self-Ping Thread
     threading.Thread(target=keep_alive, daemon=True).start()
     
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -100,4 +98,3 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
