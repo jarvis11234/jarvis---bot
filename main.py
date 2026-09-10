@@ -4,6 +4,7 @@ import random
 import threading
 import time
 import urllib.request
+import asyncio
 from flask import Flask
 from groq import Groq
 from telegram import Update
@@ -35,10 +36,11 @@ def keep_alive():
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=GROQ_KEY)
 
+# Validated Groq Model Names
 AVAILABLE_MODELS = [
-    "qwen/qwen3.6-27b",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b"
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768"
 ]
 
 SPECIAL_USERNAME = "kittykalia"
@@ -60,7 +62,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    if "jarvis" not in user_text.lower():
+    # Check if message is in DM (private) or contains 'jarvis' in a group/channel
+    is_private_chat = (update.message.chat.type == "private")
+    if not is_private_chat and ("jarvis" not in user_text.lower()):
         return
 
     sender = update.message.from_user
@@ -68,46 +72,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_name = sender.first_name if sender.first_name else ""
     last_name = sender.last_name if sender.last_name else ""
     
-    full_name = f"{first_name} {last_name}".lower()
+    full_name = f"{first_name} {last_name}".strip()
 
     is_kitty = (sender_username.lower() == SPECIAL_USERNAME.lower())
-    is_umrah = "umrah" in full_name
 
-    # Umrah Specific Persona
-    if is_umrah:
+    # Special handling for Kittykalia persona
+    if is_kitty:
         if CAT_STICKERS:
             try:
                 await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
             except Exception as e:
                 print(f"Sticker Error: {e}")
 
-        system_prompt = (
-            f"You are Jarvis, a deeply respectful, sweet, and affectionate AI assistant. {CREATOR_INFO} "
-            "Since Umrah called you, ALWAYS start your response with: "
-            "'Aadaab Umrah jaan, ' followed by a very polite, sweet, and caring response in gentle Hindustani/Urdu."
-        )
-
-    # Kittykalia Specific Persona
-    elif is_kitty:
-        if CAT_STICKERS:
-            try:
-                await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
-            except Exception as e:
-                print(f"Sticker Error: {e}")
-
-        system_prompt = (
-            f"You are Jarvis, a sweet, playful and cute AI assistant. {CREATOR_INFO} "
-            "Since the user specifically called you, ALWAYS start your response with: "
-            "'Hello meow, ' followed by your response to their query."
-        )
-
-    # Standard Persona for everyone else
+        greeting_prefix = "Hello meow, "
     else:
-        system_prompt = (
-            f"You are Jarvis, a highly intelligent AI assistant. {CREATOR_INFO} "
-            "Since the user specifically called you, ALWAYS start your response with: "
-            "'At your service sir, ' followed by your response to their query."
-        )
+        greeting_prefix = "At your service sir, "
+
+    # Dynamic system prompt including religion/cultural greeting detection
+    system_prompt = (
+        f"You are Jarvis, an intelligent, respectful, and polite AI assistant. {CREATOR_INFO}\n\n"
+        f"User Details:\n"
+        f"- Full Name: '{full_name}'\n"
+        f"- Username: '{sender_username}'\n\n"
+        f"CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:\n"
+        f"1. You MUST ALWAYS start your response exact with the text: '{greeting_prefix}'.\n"
+        f"2. Immediately after '{greeting_prefix}', carefully analyze the user's Name ('{full_name}') and Username ('{sender_username}') to detect or infer their cultural/religious background (e.g., Hindu/Sikh -> 'Namaste'/'Pranam'/'Sat Sri Akal', Muslim -> 'Aadaab'/'Assalamu Alaikum', Christian -> 'Hello/Greetings', etc.). Greet them respectfully using their name and their culturally appropriate greeting phrase.\n"
+        f"3. After the initial greeting, answer their question/query accurately, politely, and intelligently."
+    )
 
     reply = None
     last_error = None
@@ -115,20 +106,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for model_name in AVAILABLE_MODELS:
         for attempt in range(2):
             try:
-                chat_completion = client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_text}
-                    ],
-                    model=model_name,
-                    timeout=15.0
+                loop = asyncio.get_event_loop()
+                chat_completion = await loop.run_in_executor(
+                    None,
+                    lambda: client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_text}
+                        ],
+                        model=model_name,
+                        timeout=15.0
+                    )
                 )
                 raw_reply = chat_completion.choices[0].message.content
                 reply = clean_thinking_process(raw_reply)
                 break
             except Exception as e:
                 last_error = e
-                time.sleep(1)
+                await asyncio.sleep(1)
         if reply:
             break
 
@@ -147,4 +142,3 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
