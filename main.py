@@ -1,5 +1,6 @@
 import os
 import re
+import random
 import threading
 import time
 import urllib.request
@@ -40,8 +41,13 @@ AVAILABLE_MODELS = [
     "openai/gpt-oss-20b"
 ]
 
-# TARGET SPECIAL PERSON
 SPECIAL_USERNAME = "kittykalia"
+
+# MULTIPLE STICKERS (Har baar random select hoga)
+CAT_STICKERS = [
+    "CAACAgUAAxkBAAER4G1qogV5bKhnyA39dcUNvy76xCXFVAACpSIAAgcVEVUntMLvaF-SsD0E",
+    # Aap yahan aur bhi sticker IDs comma (,) lagakar add kar sakte hain
+]
 
 def clean_thinking_process(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
@@ -52,17 +58,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    # Trigger only on 'jarvis'
     if "jarvis" not in user_text.lower():
         return
 
     sender = update.message.from_user
     sender_username = sender.username if sender.username else ""
 
-    # Check if the message is from @kittykalia
     is_special = (sender_username.lower() == SPECIAL_USERNAME.lower())
 
     if is_special:
+        # Har baar list se random sticker chun kar bhejega
+        if CAT_STICKERS:
+            random_sticker = random.choice(CAT_STICKERS)
+            try:
+                await update.message.reply_sticker(sticker=random_sticker)
+            except Exception as e:
+                print(f"Sticker Error: {e}")
+
         system_prompt = (
             "You are Jarvis, a sweet, playful and cute AI assistant. "
             "Since the user specifically called you, ALWAYS start your response with: "
@@ -113,4 +125,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-                     
+    
