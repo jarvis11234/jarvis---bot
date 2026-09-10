@@ -2,7 +2,7 @@ import os
 import re
 import threading
 import time
-import requests
+import urllib.request
 from flask import Flask
 from groq import Groq
 from telegram import Update
@@ -18,15 +18,14 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Background ping thread to keep Render active
 def keep_alive():
     url = os.environ.get("RENDER_EXTERNAL_URL")
     if not url:
         return
     while True:
-        time.sleep(600)  # Ping every 10 minutes
+        time.sleep(600)
         try:
-            requests.get(url)
+            urllib.request.urlopen(url)
             print("Keep-alive ping sent successfully.")
         except Exception as e:
             print(f"Keep-alive ping failed: {e}")
@@ -41,6 +40,9 @@ AVAILABLE_MODELS = [
     "openai/gpt-oss-20b"
 ]
 
+# TARGET SPECIAL PERSON
+SPECIAL_USERNAME = "kittykalia"
+
 def clean_thinking_process(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned.strip()
@@ -54,11 +56,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "jarvis" not in user_text.lower():
         return
 
-    system_prompt = (
-        "You are Jarvis, a highly intelligent AI assistant. "
-        "Since the user specifically called you, ALWAYS start your response with: "
-        "'At your service sir, ' followed by your response to their query."
-    )
+    sender = update.message.from_user
+    sender_username = sender.username if sender.username else ""
+
+    # Check if the message is from @kittykalia
+    is_special = (sender_username.lower() == SPECIAL_USERNAME.lower())
+
+    if is_special:
+        system_prompt = (
+            "You are Jarvis, a sweet, playful and cute AI assistant. "
+            "Since the user specifically called you, ALWAYS start your response with: "
+            "'Hello meow, ' followed by your response to their query."
+        )
+    else:
+        system_prompt = (
+            "You are Jarvis, a highly intelligent AI assistant. "
+            "Since the user specifically called you, ALWAYS start your response with: "
+            "'At your service sir, ' followed by your response to their query."
+        )
 
     reply = None
     last_error = None
@@ -98,3 +113,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
+                     
