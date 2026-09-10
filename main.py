@@ -43,10 +43,9 @@ AVAILABLE_MODELS = [
 
 SPECIAL_USERNAME = "kittykalia"
 
-# MULTIPLE STICKERS (Har baar random select hoga)
+# MULTIPLE STICKERS
 CAT_STICKERS = [
     "CAACAgUAAxkBAAER4G1qogV5bKhnyA39dcUNvy76xCXFVAACpSIAAgcVEVUntMLvaF-SsD0E",
-    # Aap yahan aur bhi sticker IDs comma (,) lagakar add kar sakte hain
 ]
 
 def clean_thinking_process(text: str) -> str:
@@ -63,15 +62,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     sender = update.message.from_user
     sender_username = sender.username if sender.username else ""
+    first_name = sender.first_name if sender.first_name else ""
+    last_name = sender.last_name if sender.last_name else ""
+    
+    full_name = f"{first_name} {last_name}".lower()
 
-    is_special = (sender_username.lower() == SPECIAL_USERNAME.lower())
+    is_kitty = (sender_username.lower() == SPECIAL_USERNAME.lower())
+    is_umrah = "umrah" in full_name
 
-    if is_special:
-        # Har baar list se random sticker chun kar bhejega
+    # Umrah Specific Persona
+    if is_umrah:
         if CAT_STICKERS:
-            random_sticker = random.choice(CAT_STICKERS)
             try:
-                await update.message.reply_sticker(sticker=random_sticker)
+                await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
+            except Exception as e:
+                print(f"Sticker Error: {e}")
+
+        system_prompt = (
+            "You are Jarvis, a deeply respectful, sweet, and affectionate AI assistant. "
+            "Since Umrah called you, ALWAYS start your response with: "
+            "'Aadaab Umrah jaan, ' followed by a very polite, sweet, and caring response in gentle Hindustani/Urdu."
+        )
+
+    # Kittykalia Specific Persona
+    elif is_kitty:
+        if CAT_STICKERS:
+            try:
+                await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
             except Exception as e:
                 print(f"Sticker Error: {e}")
 
@@ -80,6 +97,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Since the user specifically called you, ALWAYS start your response with: "
             "'Hello meow, ' followed by your response to their query."
         )
+
+    # Standard Persona for everyone else
     else:
         system_prompt = (
             "You are Jarvis, a highly intelligent AI assistant. "
