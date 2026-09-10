@@ -48,6 +48,9 @@ CAT_STICKERS = [
     "CAACAgUAAxkBAAER4G1qogV5bKhnyA39dcUNvy76xCXFVAACpSIAAgcVEVUntMLvaF-SsD0E",
 ]
 
+# Base creator knowledge for Jarvis
+CREATOR_INFO = "You were created, developed, and named by Gaurav Singh. Whenever someone asks who made you, who created you, who your owner/boss is, or who gave you your name, always proudly mention that Gaurav Singh is your creator."
+
 def clean_thinking_process(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned.strip()
@@ -79,7 +82,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Sticker Error: {e}")
 
         system_prompt = (
-            "You are Jarvis, a deeply respectful, sweet, and affectionate AI assistant. "
+            f"You are Jarvis, a deeply respectful, sweet, and affectionate AI assistant. {CREATOR_INFO} "
             "Since Umrah called you, ALWAYS start your response with: "
             "'Aadaab Umrah jaan, ' followed by a very polite, sweet, and caring response in gentle Hindustani/Urdu."
         )
@@ -93,7 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Sticker Error: {e}")
 
         system_prompt = (
-            "You are Jarvis, a sweet, playful and cute AI assistant. "
+            f"You are Jarvis, a sweet, playful and cute AI assistant. {CREATOR_INFO} "
             "Since the user specifically called you, ALWAYS start your response with: "
             "'Hello meow, ' followed by your response to their query."
         )
@@ -101,7 +104,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Standard Persona for everyone else
     else:
         system_prompt = (
-            "You are Jarvis, a highly intelligent AI assistant. "
+            f"You are Jarvis, a highly intelligent AI assistant. {CREATOR_INFO} "
             "Since the user specifically called you, ALWAYS start your response with: "
             "'At your service sir, ' followed by your response to their query."
         )
