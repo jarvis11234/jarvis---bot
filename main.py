@@ -1,7 +1,8 @@
-import os
+    import os
 import re
 import threading
 import time
+import requests
 from flask import Flask
 from groq import Groq
 from telegram import Update
@@ -16,6 +17,18 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
+# Self-Ping thread to keep Render active 24/7
+def keep_alive():
+    # APNA RENDER URL YAHAN BADLEIN
+    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://jarvis-bot.onrender.com")
+    while True:
+        time.sleep(600)  # Har 10 minute (600 sec) mein ping karega
+        try:
+            requests.get(RENDER_URL)
+            print("Keep-alive ping sent successfully.")
+        except Exception as e:
+            print(f"Keep-alive ping failed: {e}")
 
 # Groq Setup
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
@@ -36,7 +49,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    # Jab tak 'jarvis' naam na ho, tab tak bot ignore karega
+    # Only respond if 'jarvis' is mentioned
     if "jarvis" not in user_text.lower():
         return
 
@@ -76,10 +89,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Jarvis Error: {last_error}")
 
 if __name__ == '__main__':
-    threading.Thread(target=run_flask).start()
+    # Start Flask Web Server
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # Start Self-Ping Thread
+    threading.Thread(target=keep_alive, daemon=True).start()
     
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
+    
