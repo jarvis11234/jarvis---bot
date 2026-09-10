@@ -36,11 +36,11 @@ def keep_alive():
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=GROQ_KEY)
 
-# Validated Groq Model Names
+# Updated Active Groq Models (Removed Decommissioned Models)
 AVAILABLE_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768"
+    "openai/gpt-oss-120b"
 ]
 
 SPECIAL_USERNAME = "kittykalia"
@@ -75,9 +75,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     full_name = f"{first_name} {last_name}".strip()
 
     is_kitty = (sender_username.lower() == SPECIAL_USERNAME.lower())
+    is_umrah = "umrah" in full_name.lower()
 
-    # Special handling for Kittykalia persona
-    if is_kitty:
+    # Umrah Persona
+    if is_umrah:
+        if CAT_STICKERS:
+            try:
+                await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
+            except Exception as e:
+                print(f"Sticker Error: {e}")
+
+        greeting_prefix = "Aadaab Umrah jaan, "
+
+    # Kittykalia Persona
+    elif is_kitty:
         if CAT_STICKERS:
             try:
                 await update.message.reply_sticker(sticker=random.choice(CAT_STICKERS))
@@ -85,19 +96,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Sticker Error: {e}")
 
         greeting_prefix = "Hello meow, "
+
+    # General Users Persona
     else:
         greeting_prefix = "At your service sir, "
 
-    # Dynamic system prompt including religion/cultural greeting detection
     system_prompt = (
         f"You are Jarvis, an intelligent, respectful, and polite AI assistant. {CREATOR_INFO}\n\n"
-        f"User Details:\n"
-        f"- Full Name: '{full_name}'\n"
-        f"- Username: '{sender_username}'\n\n"
-        f"CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:\n"
-        f"1. You MUST ALWAYS start your response exact with the text: '{greeting_prefix}'.\n"
-        f"2. Immediately after '{greeting_prefix}', carefully analyze the user's Name ('{full_name}') and Username ('{sender_username}') to detect or infer their cultural/religious background (e.g., Hindu/Sikh -> 'Namaste'/'Pranam'/'Sat Sri Akal', Muslim -> 'Aadaab'/'Assalamu Alaikum', Christian -> 'Hello/Greetings', etc.). Greet them respectfully using their name and their culturally appropriate greeting phrase.\n"
-        f"3. After the initial greeting, answer their question/query accurately, politely, and intelligently."
+        f"CRITICAL INSTRUCTIONS:\n"
+        f"1. You MUST ALWAYS start your response exactly with the text: '{greeting_prefix}'.\n"
+        f"2. After '{greeting_prefix}', answer their question accurately, politely, and intelligently."
     )
 
     reply = None
@@ -109,12 +117,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 loop = asyncio.get_event_loop()
                 chat_completion = await loop.run_in_executor(
                     None,
-                    lambda: client.chat.completions.create(
+                    lambda m=model_name: client.chat.completions.create(
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_text}
                         ],
-                        model=model_name,
+                        model=m,
                         timeout=15.0
                     )
                 )
@@ -142,3 +150,4 @@ if __name__ == '__main__':
     
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
+    
