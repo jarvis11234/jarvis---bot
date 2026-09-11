@@ -267,7 +267,6 @@ async def get_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"• <b>{f_name}</b> ({username_str}) - [{vip_tag}]\n  ID: <code>{u_id}</code> | Last Seen: {l_seen}\n\n"
 
     await update.message.reply_text(msg, parse_mode="HTML")
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     if not user_text:
