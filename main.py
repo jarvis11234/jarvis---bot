@@ -9,8 +9,15 @@ import asyncio
 from datetime import datetime
 from flask import Flask
 from groq import Groq
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, CommandHandler, filters
+from telegram import Update, LabeledPrice
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    MessageHandler,
+    CommandHandler,
+    PreCheckoutQueryHandler,
+    filters
+)
 
 app = Flask('')
 
@@ -35,7 +42,7 @@ def keep_alive():
             print(f"Keep-alive ping failed: {e}")
 
 # ==========================================
-# DATABASE SETUP (SQLite)
+# DATABASE SETUP (SQLite User Tracking)
 # ==========================================
 DB_FILE = "jarvis_users.db"
 
@@ -48,6 +55,7 @@ def init_db():
             username TEXT,
             first_name TEXT,
             last_name TEXT,
+            is_vip INTEGER DEFAULT 0,
             last_seen TIMESTAMP
         )
     ''')
@@ -75,13 +83,21 @@ def log_user(user):
     conn.commit()
     conn.close()
 
-# Initialize Database on startup
+def set_vip_status(user_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET is_vip = 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+# Initialize Database
 init_db()
 
 # Groq Setup
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=GROQ_KEY)
 
+# Active Validated Groq Models
 AVAILABLE_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
@@ -100,11 +116,46 @@ def clean_thinking_process(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned.strip()
 
-# Admin command to view all logged users
+# ==========================================
+# TELEGRAM STARS PAYMENT HANDLERS
+# ==========================================
+async def send_star_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    
+    title = "Jarvis VIP Access"
+    description = "Unlock 30 Days Premium Access to Jarvis AI!"
+    payload = "jarvis_vip_subscription"
+    currency = "XTR"  # Standard code for Telegram Stars
+    
+    # 50 Telegram Stars Price
+    prices = [LabeledPrice("VIP Pass", 50)]
+
+    await context.bot.send_invoice(
+        chat_id=chat_id,
+        title=title,
+        description=description,
+        payload=payload,
+        provider_token="",  # Must be empty for Telegram Stars
+        currency=currency,
+        prices=prices
+    )
+
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    set_vip_status(user.id)
+    await update.message.reply_text(f"Thank you {user.first_name}! Your Jarvis VIP Access has been successfully activated. 🚀")
+
+# ==========================================
+# ADMIN & MESSAGE HANDLERS
+# ==========================================
 async def get_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, username, first_name, last_seen FROM users")
+    cursor.execute("SELECT user_id, username, first_name, is_vip, last_seen FROM users")
     rows = cursor.fetchall()
     conn.close()
 
@@ -114,9 +165,10 @@ async def get_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = "<b>Registered Jarvis Users:</b>\n\n"
     for row in rows:
-        u_id, u_name, f_name, l_seen = row
+        u_id, u_name, f_name, is_vip, l_seen = row
         username_str = f"@{u_name}" if u_name else "No Username"
-        msg += f"• <b>{f_name}</b> ({username_str})\n  ID: <code>{u_id}</code> | Last Seen: {l_seen}\n\n"
+        vip_tag = "⭐ VIP" if is_vip else "Free User"
+        msg += f"• <b>{f_name}</b> ({username_str}) - [{vip_tag}]\n  ID: <code>{u_id}</code> | Last Seen: {l_seen}\n\n"
 
     await update.message.reply_text(msg, parse_mode="HTML")
 
@@ -125,7 +177,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    # Log user details to database automatically
     sender = update.message.from_user
     log_user(sender)
 
@@ -208,8 +259,15 @@ if __name__ == '__main__':
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
-    # Handlers
+    # Registered Commands
     application.add_handler(CommandHandler("users", get_users_list))
+    application.add_handler(CommandHandler("buyvip", send_star_invoice))
+    
+    # Payment Handlers
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # Message Handler
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-    
+        
