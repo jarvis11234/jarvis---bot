@@ -1,6 +1,8 @@
 import os
+import time
 import sqlite3
 import threading
+import urllib.request
 from flask import Flask, render_template_string
 from groq import Groq
 from telegram import Update, LabeledPrice
@@ -21,14 +23,36 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OWNER_ID = 8298044480  # Hardcoded Owner ID (Gaurav)
 DB_FILE = "jarvis_bot.db"
 
+# Render Web URL (Default Fallback Added)
+RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
+
 # Flask & Groq Initialization
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# New Active Groq Models (2026 Active List)
+# Active Groq Models List
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
+
+# ----------------------------------------------------
+# SELF-PING AUTO KEEP ALIVE (PREVENT SLEEP MODE)
+# ----------------------------------------------------
+def keep_alive():
+    """Har 5 minute mein Render server ko self-ping karke sleep hone se rokega."""
+    time.sleep(30)  # Server startup delay
+    while True:
+        try:
+            print(f"🔄 Sending self-ping to: {RENDER_APP_URL}")
+            req = urllib.request.Request(
+                RENDER_APP_URL, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            urllib.request.urlopen(req, timeout=10)
+            print("✅ Self-ping successful! Jarvis is awake.")
+        except Exception as e:
+            print(f"⚠️ Keep-alive ping failed: {e}")
+        time.sleep(300)  # Repeat every 5 minutes (300 seconds)
 
 # ----------------------------------------------------
 # DATABASE FUNCTIONS
@@ -60,7 +84,7 @@ def set_vip_status(user_id, is_vip=1):
     else:
         cursor.execute(
             "INSERT INTO users (user_id, username, first_name, is_vip, last_seen) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
-            (user_id, "Owner", "Gaurav Singh", is_vip)
+            (user_id, "Owner", "Gaurav", is_vip)
         )
     conn.commit()
     conn.close()
@@ -119,7 +143,7 @@ def check_user_limit(user_id, username, first_name):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Jarvis AI Web Server is Running!"
+    return "Jarvis AI Web Server is Alive & Running!"
 
 @app.route('/miniapp')
 def mini_app():
@@ -340,7 +364,9 @@ def main():
     init_db()
     set_vip_status(OWNER_ID, is_vip=1)
 
+    # Background threads for Flask & Keep-Alive Self Ping
     threading.Thread(target=run_flask, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
 
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -355,4 +381,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-            
