@@ -18,7 +18,7 @@ from telegram.ext import (
 # ----------------------------------------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-OWNER_ID = 8298044480  # Hardcoded Owner ID
+OWNER_ID = 8298044480  # Hardcoded Owner ID (Gaurav)
 DB_FILE = "jarvis_bot.db"
 
 # Flask & Groq Initialization
@@ -60,7 +60,7 @@ def set_vip_status(user_id, is_vip=1):
     else:
         cursor.execute(
             "INSERT INTO users (user_id, username, first_name, is_vip, last_seen) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
-            (user_id, "Owner", "Gaurav", is_vip)
+            (user_id, "Owner", "Gaurav Singh", is_vip)
         )
     conn.commit()
     conn.close()
@@ -218,9 +218,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     check_user_limit(user.id, user.username, user.first_name)
     welcome_msg = (
-        f"👋 Hello {user.first_name}!\n\n"
-        f"Main **Jarvis AI Assistant** hu.\n"
-        f"💡 Aap mujhse koi bhi sawal pooch sakte hain.\n\n"
+        f"🤖 **At your service, Sir!**\n\n"
+        f"Main **Jarvis AI Assistant** hu, developed and owned by **Gaurav** Sir.\n"
+        f"💡 Aap mujhse koi bhi sawal, coding, ya task pooch sakte hain.\n\n"
         f"📊 **Free Limit**: 10 Messages/Day\n"
         f"⭐ **VIP Pass**: Unlimited Access for 50 Telegram Stars!"
     )
@@ -229,7 +229,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != OWNER_ID:
-        await update.message.reply_text("⛔ Sirf Owner hi is command ko use kar sakta hai.")
+        await update.message.reply_text("⛔ Sirf Owner (Gaurav Sir) hi is command ko use kar sakte hain.")
         return
 
     conn = sqlite3.connect(DB_FILE)
@@ -272,7 +272,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     set_vip_status(user_id, is_vip=1)
-    await update.message.reply_text("🎉 **Payment Successful!** Aapka VIP status active ho chuka hai!")
+    await update.message.reply_text("🎉 **Payment Successful!** Aapka VIP status active ho chuka hai, Sir!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -286,14 +286,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not allowed:
         await update.message.reply_text(
-            "⚠️ **Daily Limit Reached!**\n\n"
+            "⚠️ **Daily Limit Reached, Sir!**\n\n"
             "Aapki aaj ki 10 free messages ki limit khatam ho chuki hai.\n"
             "Unlimited access ke liye **Open Jarvis 🚀** menu se VIP Pass upgrade karein!",
             parse_mode="Markdown"
         )
         return
 
-    # Fallback Mechanism for New Active Models
+    # Strict Identity + High-Tech Loyal Jarvis System Prompt
+    jarvis_identity_prompt = (
+        "You are Jarvis, a highly intelligent, loyal, and classy AI assistant inspired by Iron Man's AI. "
+        "Your creator, developer, and owner is Gaurav (Telegram ID: 8298044480). "
+        "If anyone asks who created, built, or owns you, ALWAYS answer proudly that Gaurav is your creator and owner. "
+        "NEVER say you were made by OpenAI, Meta, or any other team. "
+        "ALWAYS address the user respectfully as 'Sir' or 'Boss'. "
+        "ALWAYS reply strictly in natural Hinglish (Hindi written using English/Roman script mixed with English technical terms). "
+        "Keep your tone extremely polite, witty, loyal, and classy (e.g., 'At your service, Sir!')."
+    )
+
     models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
     reply = None
     last_err = ""
@@ -302,7 +312,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             chat_completion = groq_client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "You are Jarvis, a highly intelligent and helpful AI assistant."},
+                    {"role": "system", "content": jarvis_identity_prompt},
                     {"role": "user", "content": text}
                 ],
                 model=m
@@ -345,3 +355,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+            
