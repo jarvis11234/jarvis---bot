@@ -189,6 +189,8 @@ def set_vip_status(user_id):
 
 # Initialize Database
 init_db()
+OWNER_ID = 8298044480
+set_vip_status(OWNER_ID)
 
 # Groq Setup
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
