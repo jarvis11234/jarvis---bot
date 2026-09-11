@@ -7,7 +7,7 @@ import time
 import urllib.request
 import asyncio
 from datetime import datetime
-from flask import Flask
+from flask import Flask, render_template_string
 from groq import Groq
 from telegram import Update, LabeledPrice
 from telegram.ext import (
@@ -24,6 +24,103 @@ app = Flask('')
 @app.route('/')
 def home():
     return "Jarvis is Online!"
+
+# ==========================================
+# MINI APP WEB ROUTE (Added Here)
+# ==========================================
+@app.route('/miniapp')
+def mini_app():
+    html_code = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Jarvis AI VIP</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <style>
+            body {
+                background-color: #0f172a;
+                color: #f8fafc;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                margin: 0;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 90vh;
+            }
+            .card {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 16px;
+                padding: 24px;
+                width: 100%;
+                max-width: 350px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                text-align: center;
+            }
+            .avatar {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 16px auto;
+                font-size: 32px;
+            }
+            h2 { margin: 0 0 8px 0; color: #38bdf8; }
+            p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+            .badge {
+                background: #0284c7;
+                color: #fff;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            .btn {
+                background: linear-gradient(135deg, #06b6d4, #3b82f6);
+                color: white;
+                border: none;
+                width: 100%;
+                padding: 14px;
+                border-radius: 10px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .btn:active { transform: scale(0.98); }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="avatar">🤖</div>
+            <h2>Jarvis AI Assistant</h2>
+            <p>Created by <b>Gaurav Singh</b></p>
+            <div style="margin-bottom: 20px;">
+                <span class="badge">Groq Powered LLM</span>
+            </div>
+            <button class="btn" onclick="buyVip()">Buy VIP Pass (50 ⭐️)</button>
+        </div>
+
+        <script>
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+
+            function buyVip() {
+                tg.sendData("BUY_VIP_CLICKED");
+                tg.close();
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_code)
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -125,9 +222,8 @@ async def send_star_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     title = "Jarvis VIP Access"
     description = "Unlock 30 Days Premium Access to Jarvis AI!"
     payload = "jarvis_vip_subscription"
-    currency = "XTR"  # Standard code for Telegram Stars
+    currency = "XTR"
     
-    # 50 Telegram Stars Price
     prices = [LabeledPrice("VIP Pass", 50)]
 
     await context.bot.send_invoice(
@@ -135,7 +231,7 @@ async def send_star_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title=title,
         description=description,
         payload=payload,
-        provider_token="",  # Must be empty for Telegram Stars
+        provider_token="",
         currency=currency,
         prices=prices
     )
@@ -259,15 +355,12 @@ if __name__ == '__main__':
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
-    # Registered Commands
     application.add_handler(CommandHandler("users", get_users_list))
     application.add_handler(CommandHandler("buyvip", send_star_invoice))
     
-    # Payment Handlers
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     
-    # Message Handler
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.run_polling()
-        
+    
