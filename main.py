@@ -1,12 +1,6 @@
 import os
-import re
-import random
 import sqlite3
 import threading
-import time
-import urllib.request
-import asyncio
-from datetime import datetime
 from flask import Flask, render_template_string
 from groq import Groq
 from telegram import Update, LabeledPrice
@@ -27,11 +21,14 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OWNER_ID = 8298044480  # Hardcoded Owner ID
 DB_FILE = "jarvis_bot.db"
 
-# Flask App Initialization
+# Flask & Groq Initialization
 app = Flask(__name__)
-
-# Groq Client Initialization
 groq_client = Groq(api_key=GROQ_API_KEY)
+
+# New Active Groq Models (2026 Active List)
+PRIMARY_MODEL = "openai/gpt-oss-20b"
+SMART_MODEL = "openai/gpt-oss-120b"
+BACKUP_MODEL = "qwen/qwen3.6-27b"
 
 # ----------------------------------------------------
 # DATABASE FUNCTIONS
@@ -74,31 +71,30 @@ def check_user_limit(user_id, username, first_name):
     cursor.execute("SELECT is_vip, msg_count, last_reset FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
 
-    # New User Registration
+    user_is_vip = 1 if user_id == OWNER_ID else 0
+
     if not row:
-        is_vip = 1 if user_id == OWNER_ID else 0
         cursor.execute(
             "INSERT INTO users (user_id, username, first_name, is_vip, msg_count, last_reset) VALUES (?, ?, ?, ?, 1, CURRENT_DATE)",
-            (user_id, username, first_name, is_vip)
+            (user_id, username, first_name, user_is_vip)
         )
         conn.commit()
         conn.close()
-        return True, 1, is_vip
+        return True, 1, user_is_vip
 
     is_vip, msg_count, last_reset = row
 
-    # Owner ID Auto VIP Check
-    if user_id == OWNER_ID:
+    if user_id == OWNER_ID and is_vip == 0:
         is_vip = 1
+        cursor.execute("UPDATE users SET is_vip = 1 WHERE user_id = ?", (user_id,))
+        conn.commit()
 
-    # VIP/Owner Unlimited
     if is_vip == 1:
         cursor.execute("UPDATE users SET username=?, first_name=?, last_seen=CURRENT_TIMESTAMP WHERE user_id=?", (username, first_name, user_id))
         conn.commit()
         conn.close()
         return True, msg_count, is_vip
 
-    # Daily Reset Logic
     cursor.execute("SELECT CURRENT_DATE")
     today = cursor.fetchone()[0]
 
@@ -106,7 +102,6 @@ def check_user_limit(user_id, username, first_name):
         msg_count = 0
         cursor.execute("UPDATE users SET msg_count = 0, last_reset = CURRENT_DATE WHERE user_id = ?", (user_id,))
 
-    # Limit Enforcement (10 Messages)
     if msg_count >= 10:
         conn.close()
         return False, msg_count, is_vip
@@ -120,7 +115,7 @@ def check_user_limit(user_id, username, first_name):
     return True, msg_count + 1, is_vip
 
 # ----------------------------------------------------
-# FLASK ROUTES (WEBHOOK & MINI APP)
+# FLASK WEB SERVER & MINI APP
 # ----------------------------------------------------
 @app.route('/')
 def home():
@@ -217,7 +212,7 @@ def mini_app():
     return render_template_string(html_code)
 
 # ----------------------------------------------------
-# TELEGRAM BOT HANDLERS
+# BOT COMMANDS & HANDLERS
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -250,27 +245,21 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "📊 **Registered Users List:**\n\n"
     for r in rows:
         uid, uname, fname, is_vip, count = r
-        status = "⭐ [VIP]" if is_vip == 1 else f"Free ({count}/10 msgs)"
+        status = "⭐ [VIP]" if (is_vip == 1 or uid == OWNER_ID) else f"Free ({count}/10 msgs)"
         msg += f"• **{fname}** (@{uname or 'N/A'}) - `{uid}` | {status}\n"
 
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def buyvip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    title = "Jarvis AI VIP Upgrade"
-    description = "Lifetime Unlimited Access to Jarvis AI Assistant"
-    payload = "jarvis_vip_pass"
-    currency = "XTR"  # Telegram Stars Currency Code
-    prices = [LabeledPrice("VIP Access", 50)]
-
     await context.bot.send_invoice(
         chat_id=chat_id,
-        title=title,
-        description=description,
-        payload=payload,
-        provider_token="",  # Telegram Stars me Provider Token empty rehta hai
-        currency=currency,
-        prices=prices
+        title="Jarvis AI VIP Upgrade",
+        description="Lifetime Unlimited Access to Jarvis AI Assistant",
+        payload="jarvis_vip_pass",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("VIP Access", 50)]
     )
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -283,66 +272,68 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     set_vip_status(user_id, is_vip=1)
-    await update.message.reply_text(
-        "🎉 **Payment Successful!**\n\n"
-        "Aapka VIP status active ho chuka hai! Ab aap Jarvis AI ko **Unlimited** use kar sakte hain.",
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text("🎉 **Payment Successful!** Aapka VIP status active ho chuka hai!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
 
-    # Check WebApp sendData action
     if text == "/buyvip":
         await buyvip_command(update, context)
         return
 
-    # Check Limit
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
 
     if not allowed:
         await update.message.reply_text(
             "⚠️ **Daily Limit Reached!**\n\n"
             "Aapki aaj ki 10 free messages ki limit khatam ho chuki hai.\n"
-            "Unlimited access ke liye niche menu se **Open Jarvis 🚀** khol kar 50 Stars me VIP upgrade karein!",
+            "Unlimited access ke liye **Open Jarvis 🚀** menu se VIP Pass upgrade karein!",
             parse_mode="Markdown"
         )
         return
 
-    # Process Groq AI Response
-    try:
-        chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are Jarvis, a highly intelligent and helpful AI assistant."},
-                {"role": "user", "content": text}
-            ],
-            model="llama-3.3-70b-versatile"
-        )
-        reply = chat_completion.choices[0].message.content
+    # Fallback Mechanism for New Active Models
+    models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
+    reply = None
+    last_err = ""
+
+    for m in models_to_try:
+        try:
+            chat_completion = groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are Jarvis, a highly intelligent and helpful AI assistant."},
+                    {"role": "user", "content": text}
+                ],
+                model=m
+            )
+            reply = chat_completion.choices[0].message.content
+            if reply:
+                break
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    if reply:
         await update.message.reply_text(reply)
-    except Exception as e:
-        await update.message.reply_text(" Error connecting to Groq AI. Please try again.")
+    else:
+        await update.message.reply_text(f"⚠️ Groq API Error: {last_err}")
 
 # ----------------------------------------------------
-# MAIN STARTUP FUNCTION
+# MAIN EXECUTION
 # ----------------------------------------------------
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
 def main():
-    # Database Setup & Hardcoded Owner Set
     init_db()
     set_vip_status(OWNER_ID, is_vip=1)
 
-    # Start Flask Server in Background Thread
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # Telegram Bot Setup
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Register Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("users", users_command))
     application.add_handler(CommandHandler("buyvip", buyvip_command))
@@ -350,9 +341,7 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    # Run Telegram Bot
     application.run_polling()
 
 if __name__ == "__main__":
     main()
-    
