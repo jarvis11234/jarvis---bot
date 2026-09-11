@@ -36,90 +36,86 @@ def mini_app():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Jarvis AI VIP</title>
+        <title>Jarvis AI Assistant</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            body {
-                background-color: #0f172a;
-                color: #f8fafc;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                margin: 0;
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: 90vh;
-            }
-            .card {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 16px;
-                padding: 24px;
-                width: 100%;
-                max-width: 350px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-                text-align: center;
-            }
-            .avatar {
-                width: 80px;
-                height: 80px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 16px auto;
-                font-size: 32px;
-            }
-            h2 { margin: 0 0 8px 0; color: #38bdf8; }
-            p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
-            .badge {
-                background: #0284c7;
-                color: #fff;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            .btn {
-                background: linear-gradient(135deg, #06b6d4, #3b82f6);
-                color: white;
-                border: none;
-                width: 100%;
-                padding: 14px;
-                border-radius: 10px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: 0.2s;
-            }
-            .btn:active { transform: scale(0.98); }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            body { background-color: #0f172a; color: #f8fafc; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+            
+            /* Header */
+            .header { background: #1e293b; padding: 15px; text-align: center; font-weight: bold; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+            .header h1 { font-size: 1.1rem; color: #38bdf8; }
+            .vip-btn { background: #f59e0b; border: none; padding: 6px 12px; border-radius: 20px; font-weight: bold; color: #0f172a; cursor: pointer; font-size: 0.8rem; }
+
+            /* Chat Window */
+            .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+            .message { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 0.95rem; line-height: 1.4; }
+            .user-msg { background: #0284c7; align-self: flex-end; border-bottom-right-radius: 2px; }
+            .bot-msg { background: #334155; align-self: flex-start; border-bottom-left-radius: 2px; }
+
+            /* Input Bar */
+            .input-area { background: #1e293b; padding: 10px; display: flex; gap: 8px; border-top: 1px solid #334155; }
+            input { flex: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 12px; border-radius: 8px; outline: none; }
+            button.send-btn { background: #38bdf8; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; color: #0f172a; cursor: pointer; }
         </style>
     </head>
     <body>
-        <div class="card">
-            <div class="avatar">🤖</div>
-            <h2>Jarvis AI Assistant</h2>
-            <p>Created by <b>Gaurav Singh</b></p>
-            <div style="margin-bottom: 20px;">
-                <span class="badge">Groq Powered LLM</span>
-            </div>
-            <button class="btn" onclick="buyVip()">Buy VIP Pass (50 ⭐️)</button>
+
+        <div class="header">
+            <h1>🚀 Jarvis AI</h1>
+            <button class="vip-btn" onclick="buyVip()">⭐ Upgrade VIP</button>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="message bot-msg">Hello Gaurav! Main Jarvis hu. Kaise help karu aapki?</div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Ask Jarvis anything..." onkeypress="handleEnter(event)">
+            <button class="send-btn" onclick="sendMessage()">Send</button>
         </div>
 
         <script>
             const tg = window.Telegram.WebApp;
-            tg.expand();
+            tg.expand(); // Full Screen View Open Karega
+
+            function sendMessage() {
+                const input = document.getElementById("userInput");
+                const text = input.value.trim();
+                if(!text) return;
+
+                const chatBox = document.getElementById("chatBox");
+                
+                const userDiv = document.createElement("div");
+                userDiv.className = "message user-msg";
+                userDiv.innerText = text;
+                chatBox.appendChild(userDiv);
+
+                input.value = "";
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                setTimeout(() => {
+                    const botDiv = document.createElement("div");
+                    botDiv.className = "message bot-msg";
+                    botDiv.innerText = "Processing: " + text;
+                    chatBox.appendChild(botDiv);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }, 800);
+            }
+
+            function handleEnter(e) {
+                if(e.key === 'Enter') sendMessage();
+            }
 
             function buyVip() {
-                tg.sendData("BUY_VIP_CLICKED");
+                tg.sendData("/buyvip");
                 tg.close();
             }
         </script>
     </body>
     </html>
     """
+    
     return render_template_string(html_code)
 
 def run_flask():
