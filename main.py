@@ -183,9 +183,21 @@ def log_user(user):
 def set_vip_status(user_id):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET is_vip = 1 WHERE user_id = ?", (user_id,))
+    # Check agar user pehle se DB me hai
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        cursor.execute("UPDATE users SET is_vip = 1 WHERE user_id = ?", (user_id,))
+    else:
+        # Agar user nahi hai toh naya VIP record bana do
+        cursor.execute(
+            "INSERT INTO users (user_id, username, first_name, is_vip, last_seen) VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)",
+            (user_id, "Owner", "Gaurav Singh")
+        )
     conn.commit()
     conn.close()
+    
 
 # Initialize Database
 init_db()
