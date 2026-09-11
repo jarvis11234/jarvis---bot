@@ -36,34 +36,51 @@ def mini_app():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Jarvis AI Assistant</title>
+        <title>Jarvis AI</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
             body { background-color: #0f172a; color: #f8fafc; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
             
             /* Header */
-            .header { background: #1e293b; padding: 15px; text-align: center; font-weight: bold; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-            .header h1 { font-size: 1.1rem; color: #38bdf8; }
-            .vip-btn { background: #f59e0b; border: none; padding: 6px 12px; border-radius: 20px; font-weight: bold; color: #0f172a; cursor: pointer; font-size: 0.8rem; }
+            .header { background: #1e293b; padding: 14px 18px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; position: relative; }
+            .header h1 { font-size: 1.1rem; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+            
+            /* Three Dots Button */
+            .menu-btn { background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+            .menu-btn:active { background: #334155; }
+
+            /* Dropdown Menu */
+            .dropdown-menu { display: none; position: absolute; top: 50px; right: 15px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 170px; z-index: 100; overflow: hidden; }
+            .dropdown-menu.show { display: block; }
+            .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: #f8fafc; font-size: 0.9rem; text-decoration: none; cursor: pointer; border-bottom: 1px solid #334155; }
+            .dropdown-item:last-child { border-bottom: none; }
+            .dropdown-item:active { background: #334155; }
+            .dropdown-item.vip { color: #f59e0b; font-weight: bold; }
 
             /* Chat Window */
             .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-            .message { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 0.95rem; line-height: 1.4; }
+            .message { max-width: 80%; padding: 10px 14px; border-radius: 14px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; }
             .user-msg { background: #0284c7; align-self: flex-end; border-bottom-right-radius: 2px; }
             .bot-msg { background: #334155; align-self: flex-start; border-bottom-left-radius: 2px; }
 
             /* Input Bar */
-            .input-area { background: #1e293b; padding: 10px; display: flex; gap: 8px; border-top: 1px solid #334155; }
-            input { flex: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 12px; border-radius: 8px; outline: none; }
-            button.send-btn { background: #38bdf8; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; color: #0f172a; cursor: pointer; }
+            .input-area { background: #1e293b; padding: 12px; display: flex; gap: 8px; border-top: 1px solid #334155; }
+            input { flex: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 12px 16px; border-radius: 24px; outline: none; font-size: 0.95rem; }
+            button.send-btn { background: #0284c7; border: none; padding: 0 18px; border-radius: 24px; font-weight: bold; color: #fff; cursor: pointer; }
         </style>
     </head>
-    <body>
+    <body onclick="closeMenu(event)">
 
         <div class="header">
             <h1>🚀 Jarvis AI</h1>
-            <button class="vip-btn" onclick="buyVip()">⭐ Upgrade VIP</button>
+            <button class="menu-btn" onclick="toggleMenu(event)">⋮</button>
+            
+            <!-- Three Dot Menu Popup -->
+            <div class="dropdown-menu" id="dropdownMenu">
+                <div class="dropdown-item vip" onclick="buyVip()">⭐ Upgrade VIP</div>
+                <div class="dropdown-item" onclick="alert('Owner Access Active!')">👤 Profile</div>
+            </div>
         </div>
 
         <div class="chat-box" id="chatBox">
@@ -77,7 +94,19 @@ def mini_app():
 
         <script>
             const tg = window.Telegram.WebApp;
-            tg.expand(); // Full Screen View Open Karega
+            tg.expand();
+
+            function toggleMenu(e) {
+                e.stopPropagation();
+                document.getElementById("dropdownMenu").classList.toggle("show");
+            }
+
+            function closeMenu(e) {
+                const menu = document.getElementById("dropdownMenu");
+                if (menu.classList.contains("show")) {
+                    menu.classList.remove("show");
+                }
+            }
 
             function sendMessage() {
                 const input = document.getElementById("userInput");
@@ -115,8 +144,8 @@ def mini_app():
     </body>
     </html>
     """
-    
     return render_template_string(html_code)
+    
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
