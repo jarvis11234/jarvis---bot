@@ -23,7 +23,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OWNER_ID = 8298044480  # Hardcoded Owner ID (Gaurav)
 DB_FILE = "jarvis_bot.db"
 
-# Render Web URL (Default Fallback Added)
+# Render Web URL
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
 
 # Flask & Groq Initialization
@@ -36,23 +36,20 @@ SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
 
 # ----------------------------------------------------
-# SELF-PING AUTO KEEP ALIVE (PREVENT SLEEP MODE)
+# SELF-PING AUTO KEEP ALIVE
 # ----------------------------------------------------
 def keep_alive():
-    """Har 5 minute mein Render server ko self-ping karke sleep hone se rokega."""
-    time.sleep(30)  # Server startup delay
+    time.sleep(30)
     while True:
         try:
-            print(f"🔄 Sending self-ping to: {RENDER_APP_URL}")
             req = urllib.request.Request(
                 RENDER_APP_URL, 
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
             )
             urllib.request.urlopen(req, timeout=10)
-            print("✅ Self-ping successful! Jarvis is awake.")
-        except Exception as e:
-            print(f"⚠️ Keep-alive ping failed: {e}")
-        time.sleep(300)  # Repeat every 5 minutes (300 seconds)
+        except Exception:
+            pass
+        time.sleep(300)
 
 # ----------------------------------------------------
 # DATABASE FUNCTIONS
@@ -302,9 +299,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
 
+    if not text:
+        return
+
     if text == "/buyvip":
         await buyvip_command(update, context)
         return
+
+    # Filter Logic: Group Me Sirf 'Jarvis' Name Ya Tag Par Trigger Hoga
+    chat_type = update.effective_chat.type
+    bot_username = context.bot.username.lower() if context.bot.username else ""
+    user_msg_lower = text.lower()
+
+    if chat_type in ["group", "supergroup"]:
+        is_mentioned = f"@{bot_username}" in user_msg_lower
+        has_jarvis_name = "jarvis" in user_msg_lower
+        
+        # Agar group me 'jarvis' ka naam nahi liya, toh ignore kar do
+        if not (is_mentioned or has_jarvis_name):
+            return
 
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
 
@@ -317,7 +330,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Strict Identity + High-Tech Loyal Jarvis System Prompt
+    # Identity + Hinglish System Prompt
     jarvis_identity_prompt = (
         "You are Jarvis, a highly intelligent, loyal, and classy AI assistant inspired by Iron Man's AI. "
         "Your creator, developer, and owner is Gaurav (Telegram ID: 8298044480). "
@@ -364,7 +377,6 @@ def main():
     init_db()
     set_vip_status(OWNER_ID, is_vip=1)
 
-    # Background threads for Flask & Keep-Alive Self Ping
     threading.Thread(target=run_flask, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
 
@@ -381,3 +393,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
