@@ -3,6 +3,7 @@ import time
 import sqlite3
 import threading
 import urllib.request
+import base64
 from flask import Flask, render_template_string
 from groq import Groq
 from telegram import Update, LabeledPrice
@@ -20,7 +21,7 @@ from telegram.ext import (
 # ----------------------------------------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-OWNER_ID = 8298044480  # Hardcoded Numerical Owner ID
+OWNER_ID = 8298044480  # Hardcoded Numerical Owner ID (Gaurav)
 DB_FILE = "jarvis_bot.db"
 
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
@@ -28,10 +29,11 @@ RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
+# Groq Updated Active Models
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
-VISION_MODEL = "llama-3.2-11b-vision-preview"
+VISION_MODEL = "llama-3.2-11b-vision-preview"  # Active Vision Model
 
 # Group Chat Context Memory
 CHAT_MEMORY = {}
@@ -53,7 +55,7 @@ def keep_alive():
         time.sleep(300)
 
 # ----------------------------------------------------
-# DATABASE FUNCTIONS (ID-Based Verification)
+# DATABASE FUNCTIONS
 # ----------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -91,7 +93,6 @@ def check_user_limit(user_id, username, first_name):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Strictly Check Numerical ID for Owner
     is_owner = (int(user_id) == int(OWNER_ID))
     user_is_vip = 1 if is_owner else 0
 
@@ -109,7 +110,6 @@ def check_user_limit(user_id, username, first_name):
 
     is_vip, msg_count, last_reset = row
 
-    # Dynamic profile sync & VIP verification for Owner
     if is_owner:
         is_vip = 1
         cursor.execute(
@@ -203,7 +203,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # Explicit Numerical Verification for Owner ID
     if int(user_id) != int(OWNER_ID):
         await update.message.reply_text("⛔ Access Denied! Sirf Owner (Gaurav Sir) hi is command ko run kar sakte hain.")
         return
@@ -305,10 +304,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = None
 
+    # Handle Photo Doubts (Image download & Base64 encoding for Groq Vision)
     if photo:
         try:
-            file = await context.bot.get_file(photo[-1].file_id)
-            file_url = file.file_path
+            tg_file = await context.bot.get_file(photo[-1].file_id)
+            image_bytes = await tg_file.download_as_bytearray()
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
             completion = groq_client.chat.completions.create(
                 model=VISION_MODEL,
@@ -317,16 +318,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": full_user_prompt or "Solve this image doubt, Sir."},
-                            {"type": "image_url", "image_url": {"url": file_url}}
+                            {"type": "text", "text": full_user_prompt or "Solve this image doubt step-by-step, Sir."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
                         ]
                     }
                 ]
             )
             reply = completion.choices[0].message.content
         except Exception as e:
-            reply = f"⚠️ Image doubt processing error: {e}"
+            reply = f"⚠️ Image processing error: {e}"
 
+    # Handle Normal Text Doubts
     if not reply and text:
         models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
         for m in models_to_try:
@@ -347,7 +354,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if reply:
         await update.message.reply_text(reply)
     else:
-        await update.message.reply_text("⚠️ System issue, Sir. Request complete nahi ho sakti.")
+        await update.message.reply_text("⚠️ Groq AI models se connection build nahi ho pa raha hai, Sir.")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -376,3 +383,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
