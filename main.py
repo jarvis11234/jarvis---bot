@@ -3,11 +3,11 @@ import time
 import sqlite3
 import threading
 import urllib.request
+import json
 import base64
 import re
 from flask import Flask, render_template_string
 from groq import Groq
-import google.generativeai as genai
 from telegram import Update, LabeledPrice
 from telegram.ext import (
     ApplicationBuilder,
@@ -31,14 +31,8 @@ RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.
 
 app = Flask(__name__)
 
-# Clients Setup
+# Groq Client Setup
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Gemini Init Warning: {e}")
 
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
@@ -372,7 +366,7 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# VISION SOLVER ENGINE
+# DIRECT HTTP VISION SOLVER (NO GOOGLE SDK DEPENDENCY)
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
     prompt = (
@@ -386,49 +380,54 @@ def process_vision_query(image_bytes, user_text):
     if user_text:
         prompt += f"\nUser Instruction: {user_text}"
 
+    # Method 1: Direct Gemini REST HTTP API
     if GEMINI_API_KEY:
-        gemini_candidates = [
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "models/gemini-1.5-flash"
-        ]
-        image_data = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
-
-        for m_name in gemini_candidates:
-            try:
-                g_model = genai.GenerativeModel(m_name)
-                res = g_model.generate_content([prompt, image_data[0]])
-                if res and res.text:
-                    return res.text
-            except Exception:
-                continue
-
-    if groq_client:
-        groq_vision_candidates = [
-            "llama-3.2-11b-vision-preview",
-            "llama-3.2-90b-vision-preview"
-        ]
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        base64_img = base64.b64encode(image_bytes).decode('utf-8')
+        gemini_models = ["gemini-1.5-flash", "gemini-2.0-flash"]
         
-        for gv_model in groq_vision_candidates:
+        for model in gemini_models:
             try:
-                completion = groq_client.chat.completions.create(
-                    model=gv_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                            ]
-                        }
-                    ]
-                )
-                if completion.choices[0].message.content:
-                    return completion.choices[0].message.content
-            except Exception:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": base64_img}}
+                        ]
+                    }]
+                }
+                data = json.dumps(payload).encode('utf-8')
+                req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
+                
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    res_json = json.loads(resp.read().decode('utf-8'))
+                    text_out = res_json['candidates'][0]['content']['parts'][0]['text']
+                    if text_out:
+                        return text_out
+            except Exception as e:
+                print(f"Gemini REST Error ({model}): {e}")
                 continue
+
+    # Method 2: Fallback to Groq Vision API
+    if groq_client:
+        try:
+            base64_img = base64.b64encode(image_bytes).decode('utf-8')
+            completion = groq_client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
+                        ]
+                    }
+                ]
+            )
+            if completion.choices[0].message.content:
+                return completion.choices[0].message.content
+        except Exception as e:
+            print(f"Groq Vision Error: {e}")
 
     return "System image read nahi kar paa raha hai, Sir. Please try again."
 
@@ -511,18 +510,4 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if reply:
         await send_large_message(update, reply)
     else:
-        await update.message.reply_text("Response generate nahi ho saka.")
-
-# ----------------------------------------------------
-# MAIN EXECUTION
-# ----------------------------------------------------
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-def main():
-    init_db()
-    set_vip_status(OWNER_ID, is_vip=1)
-
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread
+        await update.messag
