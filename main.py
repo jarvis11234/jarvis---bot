@@ -7,7 +7,7 @@ import base64
 import re
 from flask import Flask, render_template_string
 from groq import Groq
-import google.generativeai as genai
+from google import genai
 from telegram import Update, LabeledPrice
 from telegram.ext import (
     ApplicationBuilder,
@@ -33,12 +33,7 @@ app = Flask(__name__)
 
 # Clients Setup
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Gemini Init Warning: {e}")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
@@ -47,7 +42,7 @@ BACKUP_MODEL = "qwen/qwen3.6-27b"
 CHAT_MEMORY = {}
 
 # ----------------------------------------------------
-# CLEAN FORMATTING CONVERTER (No extra stars, Clean Bullets)
+# CLEAN FORMATTING CONVERTER
 # ----------------------------------------------------
 def clean_latex_formatting(text: str) -> str:
     if not text:
@@ -372,7 +367,7 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# VISION SOLVER ENGINE
+# NEW ROBUST VISION SOLVER ENGINE
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
     prompt = (
@@ -386,31 +381,28 @@ def process_vision_query(image_bytes, user_text):
     if user_text:
         prompt += f"\nUser Instruction: {user_text}"
 
-    if GEMINI_API_KEY:
-        gemini_candidates = [
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "models/gemini-1.5-flash",
-            "models/gemini-2.0-flash"
-        ]
-        image_data = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
-
-        for m_name in gemini_candidates:
+    # Try Updated Gemini Models via New SDK
+    if gemini_client:
+        gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
+        for m in gemini_models:
             try:
-                g_model = genai.GenerativeModel(m_name)
-                res = g_model.generate_content([prompt, image_data[0]])
-                if res and res.text:
-                    return res.text
-            except Exception:
+                response = gemini_client.models.generate_content(
+                    model=m,
+                    contents=[
+                        prompt,
+                        genai.types.Part.from_bytes(data=bytes(image_bytes), mime_type="image/jpeg")
+                    ]
+                )
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                print(f"Gemini {m} Error: {e}")
                 continue
 
+    # Fallback to Groq Vision
     if groq_client:
-        groq_vision_candidates = [
-            "llama-3.2-11b-vision-preview",
-            "llama-3.2-90b-vision-preview"
-        ]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        groq_vision_candidates = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
         
         for gv_model in groq_vision_candidates:
             try:
@@ -428,10 +420,11 @@ def process_vision_query(image_bytes, user_text):
                 )
                 if completion.choices[0].message.content:
                     return completion.choices[0].message.content
-            except Exception:
+            except Exception as e:
+                print(f"Groq Vision {gv_model} Error: {e}")
                 continue
 
-    return "System image read nahi kar paa raha hai, Sir. Please try again."
+    return "System image read nahi kar paa raha hai, Sir. Please try uploading again."
 
 # ----------------------------------------------------
 # MESSAGE ROUTER
@@ -525,23 +518,4 @@ def main():
     init_db()
     set_vip_status(OWNER_ID, is_vip=1)
 
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread(target=keep_alive, daemon=True).start()
-
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("users", users_command))
-    application.add_handler(CommandHandler("think", think_command))
-    application.add_handler(CommandHandler("web", web_command))
-    application.add_handler(CommandHandler("buyvip", buyvip_command))
-    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    
-    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
-    application.add_handler(MessageHandler(message_filter, handle_message))
-
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+ 
