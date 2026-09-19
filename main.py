@@ -3,6 +3,7 @@ import time
 import sqlite3
 import threading
 import urllib.request
+import base64
 import re
 from flask import Flask, render_template_string
 from groq import Groq
@@ -29,12 +30,17 @@ DB_FILE = "jarvis_bot.db"
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
 
 app = Flask(__name__)
+
+# Clients Setup
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        print(f"Gemini Init Warning: {e}")
 
-# Groq Active Text Models
+# Groq Active Text Models Stack
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
@@ -189,7 +195,7 @@ def mini_app():
     return render_template_string(html_code)
 
 # ----------------------------------------------------
-# BOT COMMANDS & HANDLERS
+# BOT COMMANDS
 # ----------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -325,39 +331,74 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# IMAGE DOUBT SOLVER ENGINE (GUARANTEED FALLBACK)
+# BULLETPROOF IMAGE DOUBT SOLVER ENGINE
 # ----------------------------------------------------
-def solve_image_doubt(image_bytes, prompt_text):
-    prompt = prompt_text or "Solve this question/image step-by-step in detail in Hinglish, Sir."
-    
-    # 1. Try Gemini Models
+def process_vision_query(image_bytes, user_text):
+    prompt = user_text or "Solve this question or explain this image step-by-step in detail in natural Hinglish, Sir."
+
+    # Priority Step 1: Gemini API Multiple Model Failover
     if GEMINI_API_KEY:
+        gemini_candidates = [
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "models/gemini-1.5-flash",
+            "models/gemini-2.0-flash"
+        ]
+        
+        # Dynamic discovery try
         try:
-            # Automatic Dynamic Discovery of active models in API Key
-            available_models = [
+            discovered = [
                 m.name for m in genai.list_models() 
                 if 'generateContent' in m.supported_generation_methods
             ]
+            gemini_candidates = discovered + gemini_candidates
         except Exception:
-            available_models = []
+            pass
 
-        # Fallback list if discovery fails
-        fallback_gemini = ["models/gemini-1.5-flash", "models/gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
-        model_queue = available_models + [m for m in fallback_gemini if m not in available_models]
+        image_data = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
 
-        image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
-
-        for model_name in model_queue:
+        for m_name in gemini_candidates:
             try:
-                model = genai.GenerativeModel(model_name)
-                res = model.generate_content([prompt, image_parts[0]])
+                g_model = genai.GenerativeModel(m_name)
+                res = g_model.generate_content([prompt, image_data[0]])
                 if res and res.text:
                     return res.text
             except Exception:
                 continue
 
-    return None
+    # Priority Step 2: Groq Vision Fallback if Gemini fails or Key is missing
+    if groq_client:
+        groq_vision_candidates = [
+            "llama-3.2-11b-vision-preview",
+            "llama-3.2-90b-vision-preview"
+        ]
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        for gv_model in groq_vision_candidates:
+            try:
+                completion = groq_client.chat.completions.create(
+                    model=gv_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                            ]
+                        }
+                    ]
+                )
+                if completion.choices[0].message.content:
+                    return completion.choices[0].message.content
+            except Exception:
+                continue
 
+    return "⚠️ System abhi image read nahi kar pa raha hai, Sir. Kripya image ki clarity check karke dobara bhejein."
+
+# ----------------------------------------------------
+# MESSAGE ROUTER
+# ----------------------------------------------------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
@@ -401,29 +442,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context_str = "\n".join(CHAT_MEMORY.get(chat_id, []))
     full_user_prompt = f"Recent Chat Memory:\n{context_str}\n\nCurrent Input: {text}"
 
-    reply = None
-
     # Handle Photo Doubts
     if photo:
-        status_msg = await update.message.reply_text("📸 *Analyzing Image & Solving Question, Sir...*", parse_mode="Markdown")
+        status_msg = await update.message.reply_text("📸 *Solving Question, Sir...*", parse_mode="Markdown")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
             
-            reply = solve_image_doubt(image_bytes, text)
-            
-            if reply:
-                await status_msg.edit_text(reply)
-                return
-            else:
-                await status_msg.edit_text("⚠️ Image readable nahi hai ya Gemini Key inactive hai, Sir.")
-                return
+            solution = process_vision_query(image_bytes, text)
+            await status_msg.edit_text(solution)
+            return
         except Exception as e:
-            await status_msg.edit_text(f"⚠️ Image Processing Error: {e}")
+            await status_msg.edit_text(f"⚠️ Image Download Error: {e}")
             return
 
     # Handle Text Input
-    if not reply and text:
+    reply = None
+    if text:
         models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
         for m in models_to_try:
             try:
