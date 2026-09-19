@@ -49,6 +49,21 @@ BACKUP_MODEL = "qwen/qwen3.6-27b"
 CHAT_MEMORY = {}
 
 # ----------------------------------------------------
+# HELPER: TELEGRAM LONG MESSAGE SPLITTER
+# ----------------------------------------------------
+async def send_large_message(update: Update, text: str):
+    """Telegram ki 4096 character limit ko bypass karne ke liye message splitter"""
+    max_length = 4000
+    if len(text) <= max_length:
+        await update.message.reply_text(text)
+        return
+
+    # Message ko parts me tod kar bhejna
+    for i in range(0, len(text), max_length):
+        chunk = text[i:i + max_length]
+        await update.message.reply_text(chunk)
+
+# ----------------------------------------------------
 # SELF-PING AUTO KEEP ALIVE
 # ----------------------------------------------------
 def keep_alive():
@@ -236,7 +251,7 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status = "⭐ [VIP/Owner]" if (is_vip == 1 or int(uid) == int(OWNER_ID)) else f"Free ({count}/10 msgs)"
             msg += f"• **{fname}** (@{uname or 'N/A'}) - `{uid}` | {status}\n"
 
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await send_large_message(update, msg)
     except Exception as e:
         await update.message.reply_text(f"⚠️ DB Fetch Error: {e}")
 
@@ -264,7 +279,8 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             model=SMART_MODEL
         )
         reply = completion.choices[0].message.content
-        await thinking_msg.edit_text(reply, parse_mode="Markdown")
+        await thinking_msg.delete()
+        await send_large_message(update, reply)
     except Exception as e:
         await thinking_msg.edit_text(f"⚠️ Reasoning Error: {e}")
 
@@ -295,7 +311,8 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             model=PRIMARY_MODEL
         )
         summary = completion.choices[0].message.content
-        await status_msg.edit_text(f"📖 **Web Summary for:** `{url}`\n\n{summary}", parse_mode="Markdown")
+        await status_msg.delete()
+        await send_large_message(update, f"📖 **Web Summary for:** `{url}`\n\n{summary}")
     except Exception as e:
         await status_msg.edit_text(f"⚠️ Failed to read web link: {e}")
 
@@ -346,7 +363,6 @@ def process_vision_query(image_bytes, user_text):
             "models/gemini-2.0-flash"
         ]
         
-        # Dynamic discovery try
         try:
             discovered = [
                 m.name for m in genai.list_models() 
@@ -367,7 +383,7 @@ def process_vision_query(image_bytes, user_text):
             except Exception:
                 continue
 
-    # Priority Step 2: Groq Vision Fallback if Gemini fails or Key is missing
+    # Priority Step 2: Groq Vision Fallback
     if groq_client:
         groq_vision_candidates = [
             "llama-3.2-11b-vision-preview",
@@ -450,7 +466,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             image_bytes = await tg_file.download_as_bytearray()
             
             solution = process_vision_query(image_bytes, text)
-            await status_msg.edit_text(solution)
+            await status_msg.delete()  # Loading message delete
+            await send_large_message(update, solution)  # Auto-split delivery
             return
         except Exception as e:
             await status_msg.edit_text(f"⚠️ Image Download Error: {e}")
@@ -476,7 +493,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
 
     if reply:
-        await update.message.reply_text(reply)
+        await send_large_message(update, reply)
     else:
         await update.message.reply_text("⚠️ System response generate nahi kar pa raha hai, Sir.")
 
@@ -503,9 +520,4 @@ def main():
     application.add_handler(CommandHandler("buyvip", buyvip_command))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO) & (~filters.COMMAND), handle_message))
-
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+    application.add_handler(MessageHandle
