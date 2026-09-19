@@ -3,7 +3,6 @@ import time
 import sqlite3
 import threading
 import urllib.request
-import base64
 import re
 from flask import Flask, render_template_string
 from groq import Groq
@@ -30,17 +29,17 @@ DB_FILE = "jarvis_bot.db"
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
 
 app = Flask(__name__)
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Groq Active Text Models Stack
+# Groq Active Text Models
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
 
-# Group Chat Context Memory (Last 15 Messages)
+# Group Chat Memory
 CHAT_MEMORY = {}
 
 # ----------------------------------------------------
@@ -52,7 +51,7 @@ def keep_alive():
         try:
             req = urllib.request.Request(
                 RENDER_APP_URL, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                headers={'User-Agent': 'Mozilla/5.0'}
             )
             urllib.request.urlopen(req, timeout=10)
         except Exception:
@@ -116,7 +115,6 @@ def check_user_limit(user_id, username, first_name):
     is_vip, msg_count, last_reset = row
 
     if is_owner:
-        is_vip = 1
         cursor.execute(
             "UPDATE users SET is_vip = 1, username = ?, first_name = ?, last_seen = CURRENT_TIMESTAMP WHERE user_id = ?",
             (username or "N/A", first_name or "Gaurav", user_id)
@@ -158,7 +156,7 @@ def check_user_limit(user_id, username, first_name):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Jarvis v2.0 Advanced Engine Active!"
+    return "Jarvis v2.0 AI Engine Active!"
 
 @app.route('/miniapp')
 def mini_app():
@@ -281,7 +279,6 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         html_data = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-        
         clean_text = re.sub('<[^<]+?>', '', html_data)[:3000]
 
         completion = groq_client.chat.completions.create(
@@ -326,6 +323,40 @@ def save_chat_memory(chat_id, user_name, text):
     CHAT_MEMORY[chat_id].append(f"{user_name}: {text}")
     if len(CHAT_MEMORY[chat_id]) > 15:
         CHAT_MEMORY[chat_id].pop(0)
+
+# ----------------------------------------------------
+# IMAGE DOUBT SOLVER ENGINE (GUARANTEED FALLBACK)
+# ----------------------------------------------------
+def solve_image_doubt(image_bytes, prompt_text):
+    prompt = prompt_text or "Solve this question/image step-by-step in detail in Hinglish, Sir."
+    
+    # 1. Try Gemini Models
+    if GEMINI_API_KEY:
+        try:
+            # Automatic Dynamic Discovery of active models in API Key
+            available_models = [
+                m.name for m in genai.list_models() 
+                if 'generateContent' in m.supported_generation_methods
+            ]
+        except Exception:
+            available_models = []
+
+        # Fallback list if discovery fails
+        fallback_gemini = ["models/gemini-1.5-flash", "models/gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        model_queue = available_models + [m for m in fallback_gemini if m not in available_models]
+
+        image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
+
+        for model_name in model_queue:
+            try:
+                model = genai.GenerativeModel(model_name)
+                res = model.generate_content([prompt, image_parts[0]])
+                if res and res.text:
+                    return res.text
+            except Exception:
+                continue
+
+    return None
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -372,36 +403,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = None
 
-    # Handle Photo Doubts (Updated Gemini Vision Models Stack)
+    # Handle Photo Doubts
     if photo:
+        status_msg = await update.message.reply_text("📸 *Analyzing Image & Solving Question, Sir...*", parse_mode="Markdown")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
             
-            if GEMINI_API_KEY:
-                # Active Gemini Vision Models Stack
-                gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
-                image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
-                prompt_text = text or "Solve this question/image step-by-step in detail, Sir."
-                
-                for g_model in gemini_models:
-                    try:
-                        model = genai.GenerativeModel(g_model)
-                        response = model.generate_content([prompt_text, image_parts[0]])
-                        reply = response.text
-                        if reply:
-                            break
-                    except Exception:
-                        continue
-                        
-                if not reply:
-                    reply = "⚠️ Vision models busy hain, kripya 1 minute baad dobara photo bhejein, Sir."
+            reply = solve_image_doubt(image_bytes, text)
+            
+            if reply:
+                await status_msg.edit_text(reply)
+                return
             else:
-                reply = "⚠️ Image Vision active karne ke liye `GEMINI_API_KEY` Environment Variable set karein, Sir."
+                await status_msg.edit_text("⚠️ Image readable nahi hai ya Gemini Key inactive hai, Sir.")
+                return
         except Exception as e:
-            reply = f"⚠️ Image processing error: {e}"
+            await status_msg.edit_text(f"⚠️ Image Processing Error: {e}")
+            return
 
-    # Handle Text Doubts with Multi-Model Fallback
+    # Handle Text Input
     if not reply and text:
         models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
         for m in models_to_try:
