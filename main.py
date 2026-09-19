@@ -576,5 +576,73 @@ def main():
     application.run_polling()
 
 if __name__ == "__main__":
+    # ----------------------------------------------------
+# MAIN EXECUTION (FIXED FOR DEPLOYMENT)
+# ----------------------------------------------------
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+def main():
+    init_db()
+    set_vip_status(OWNER_ID, is_vip=1)
+
+    threading.Thread(target=run_flask, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
+
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("users", users_command))
+    application.add_handler(CommandHandler("think", think_command))
+    application.add_handler(CommandHandler("web", web_command))
+    application.add_handler(CommandHandler("buyvip", buyvip_command))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    
+    # SUCCESSFUL PAYMENT HANDLER FIX
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # MESSAGE HANDLER FIX
+    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
+    application.add_handler(MessageHandler(message_filter, handle_message))
+
+    application.run_polling()
+
+if __name__ == "__main__":
+    # ----------------------------------------------------
+# MAIN EXECUTION (FIXED FOR DEPLOYMENT)
+# ----------------------------------------------------
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+def main():
+    init_db()
+    set_vip_status(OWNER_ID, is_vip=1)
+
+    threading.Thread(target=run_flask, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
+
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("users", users_command))
+    application.add_handler(CommandHandler("think", think_command))
+    application.add_handler(CommandHandler("web", web_command))
+    application.add_handler(CommandHandler("buyvip", buyvip_command))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    
+    # SUCCESSFUL PAYMENT HANDLER FIX
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # MESSAGE HANDLER FIX
+    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
+    application.add_handler(MessageHandler(message_filter, handle_message))
+
+    application.run_polling()
+
+if __name__ == "__main__":
     main()
+
+            
             
