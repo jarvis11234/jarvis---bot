@@ -92,7 +92,8 @@ def clean_latex_formatting(text: str) -> str:
             cleaned_lines.append(line)
             
     return "\n".join(cleaned_lines).strip()
-            # ----------------------------------------------------
+
+# ----------------------------------------------------
 # HELPER: TELEGRAM LONG MESSAGE SPLITTER (WITH MARKDOWN)
 # ----------------------------------------------------
 async def send_large_message(update: Update, text: str):
@@ -221,7 +222,8 @@ def check_user_limit(user_id, username, first_name):
     conn.commit()
     conn.close()
     return True, msg_count + 1, is_vip
-    # ----------------------------------------------------
+
+# ----------------------------------------------------
 # FLASK WEB SERVER
 # ----------------------------------------------------
 @app.route('/')
@@ -332,7 +334,8 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_large_message(update, reply)
     except Exception as e:
         await thinking_msg.edit_text(f"⚠️ Reasoning Error: {e}")
-    async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
     if not allowed:
@@ -521,7 +524,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Handle Text Input
     reply = None
     if text:
-        models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
+                models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
         for m in models_to_try:
             try:
                 chat_completion = groq_client.chat.completions.create(
@@ -574,4 +577,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
+            
