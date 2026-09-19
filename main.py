@@ -52,13 +52,11 @@ CHAT_MEMORY = {}
 # HELPER: TELEGRAM LONG MESSAGE SPLITTER
 # ----------------------------------------------------
 async def send_large_message(update: Update, text: str):
-    """Telegram ki 4096 character limit ko bypass karne ke liye message splitter"""
     max_length = 4000
     if len(text) <= max_length:
         await update.message.reply_text(text)
         return
 
-    # Message ko parts me tod kar bhejna
     for i in range(0, len(text), max_length):
         chunk = text[i:i + max_length]
         await update.message.reply_text(chunk)
@@ -348,12 +346,11 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# BULLETPROOF IMAGE DOUBT SOLVER ENGINE
+# VISION SOLVER ENGINE
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
     prompt = user_text or "Solve this question or explain this image step-by-step in detail in natural Hinglish, Sir."
 
-    # Priority Step 1: Gemini API Multiple Model Failover
     if GEMINI_API_KEY:
         gemini_candidates = [
             "gemini-2.0-flash",
@@ -383,7 +380,6 @@ def process_vision_query(image_bytes, user_text):
             except Exception:
                 continue
 
-    # Priority Step 2: Groq Vision Fallback
     if groq_client:
         groq_vision_candidates = [
             "llama-3.2-11b-vision-preview",
@@ -466,8 +462,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             image_bytes = await tg_file.download_as_bytearray()
             
             solution = process_vision_query(image_bytes, text)
-            await status_msg.delete()  # Loading message delete
-            await send_large_message(update, solution)  # Auto-split delivery
+            await status_msg.delete()
+            await send_large_message(update, solution)
             return
         except Exception as e:
             await status_msg.edit_text(f"⚠️ Image Download Error: {e}")
@@ -520,4 +516,12 @@ def main():
     application.add_handler(CommandHandler("buyvip", buyvip_command))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandle
+    
+    # Corrected filter handling with exact closed parentheses
+    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
+    application.add_handler(MessageHandler(message_filter, handle_message))
+
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
