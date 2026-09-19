@@ -372,18 +372,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = None
 
-    # Handle Photo Doubts (Gemini Vision Integration for Images)
+    # Handle Photo Doubts (Updated Gemini Vision Models Stack)
     if photo:
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
             
             if GEMINI_API_KEY:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # Active Gemini Vision Models Stack
+                gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
                 image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
                 prompt_text = text or "Solve this question/image step-by-step in detail, Sir."
-                response = model.generate_content([prompt_text, image_parts[0]])
-                reply = response.text
+                
+                for g_model in gemini_models:
+                    try:
+                        model = genai.GenerativeModel(g_model)
+                        response = model.generate_content([prompt_text, image_parts[0]])
+                        reply = response.text
+                        if reply:
+                            break
+                    except Exception:
+                        continue
+                        
+                if not reply:
+                    reply = "⚠️ Vision models busy hain, kripya 1 minute baad dobara photo bhejein, Sir."
             else:
                 reply = "⚠️ Image Vision active karne ke liye `GEMINI_API_KEY` Environment Variable set karein, Sir."
         except Exception as e:
