@@ -30,11 +30,11 @@ RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.
 app = Flask(__name__)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Groq Updated Active Models Stack
+# Groq Active Models Stack (Updated 2026 Models)
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
-VISION_MODEL = "llama-3.2-11b-vision-preview"
+VISION_MODEL = "llama-3.2-90b-vision-preview"  # Updated Active Vision Model
 
 # Group Chat Context Memory (Last 15 Messages)
 CHAT_MEMORY = {}
@@ -356,7 +356,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Updated System Prompt - No ID Leakage
     jarvis_system_prompt = (
         "You are Jarvis v2.0, a highly advanced, loyal, and classy AI created and owned by Gaurav Sir. "
         "ALWAYS address the user respectfully as 'Sir' or 'Boss' in natural Hinglish. "
@@ -369,29 +368,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = None
 
-    # Handle Photo Doubts (Vision Model)
+    # Handle Photo Doubts (Vision Model Active)
     if photo:
+        vision_models_to_try = [VISION_MODEL, "llama-3.2-11b-vision-instruct", SMART_MODEL]
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-            completion = groq_client.chat.completions.create(
-                model=VISION_MODEL,
-                messages=[
-                    {"role": "system", "content": jarvis_system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": full_user_prompt or "Solve this image doubt, Sir."},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+            for vm in vision_models_to_try:
+                try:
+                    completion = groq_client.chat.completions.create(
+                        model=vm,
+                        messages=[
+                            {"role": "system", "content": jarvis_system_prompt},
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": full_user_prompt or "Solve this image doubt, Sir."},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                ]
+                            }
                         ]
-                    }
-                ]
-            )
-            reply = completion.choices[0].message.content
+                    )
+                    reply = completion.choices[0].message.content
+                    if reply:
+                        break
+                except Exception:
+                    continue
         except Exception as e:
-            reply = f"⚠️ Image processing error: {e}"
+            reply = f"⚠️ Image download error: {e}"
 
     # Handle Text Doubts with Multi-Model Fallback
     if not reply and text:
