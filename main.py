@@ -5,8 +5,7 @@ import re
 import threading
 from PIL import Image
 from flask import Flask
-from groq import Groq
-import google.generativeai as genai
+from google import genai
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -20,35 +19,35 @@ from telegram.ext import (
 # CONFIGURATION
 # ----------------------------------------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OWNER_ID = 8298044480  # Gaurav Sir
-DB_FILE = "jarvis_hybrid.db"
+DB_FILE = "jarvis_official.db"
 
 app = Flask(__name__)
 
-# Clients Setup
-groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Gemini Init Warning: {e}")
+# Initialize Official Google GenAI Client
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # ----------------------------------------------------
-# FORMAT CLEANER (No Dollars, No Stars)
+# STRICT TEXT & LATEX CLEANER
+# Zero Dollars ($), Zero Asterisks (*), Plain Text Only
 # ----------------------------------------------------
 def clean_response_text(text: str) -> str:
     if not text:
         return ""
+    # Remove Dollar signs & LaTeX delimiters
     text = text.replace("$", "").replace("\\(", "").replace("\\)", "").replace("\\[", "").replace("\\]", "")
+    
+    # Replace LaTeX operators
     text = re.sub(r'\\times', '×', text)
     text = re.sub(r'\\div', '÷', text)
     text = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1 / \2)', text)
+    
+    # Remove markdown headers and stars
     text = re.sub(r'#+\s*', '', text)
     text = text.replace("**", "").replace("*", "")
     
+    # Clean list bullet points
     lines = text.split('\n')
     cleaned_lines = []
     for line in lines:
@@ -61,7 +60,7 @@ def clean_response_text(text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 # ----------------------------------------------------
-# DATABASE
+# DATABASE & LIMIT CONTROL
 # ----------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -78,7 +77,7 @@ def init_db():
 
 def check_user_limit(user_id):
     if int(user_id) == int(OWNER_ID):
-        return True
+        return True  # Unlimited for Gaurav Sir
         
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -111,22 +110,23 @@ def check_user_limit(user_id):
     return True
 
 # ----------------------------------------------------
-# FLASK SERVER
+# FLASK WEB SERVER
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Jarvis AI (Groq + Gemini Engine Online)"
+    return "Jarvis AI Official Core Online"
 
 # ----------------------------------------------------
-# BOT HANDLERS
+# BOT HANDLERS & JARVIS PERSONA
 # ----------------------------------------------------
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     msg = (
-        f"Namaste {user_name}! Main Jarvis AI hoon, Gaurav Sir dwara banaya gaya.\n\n"
-        f"🔹 Ultra-Fast Text Answers (Powered by Groq)\n"
-        f"🔹 High Accuracy Photo Doubt Solver (Powered by Gemini Vision)\n\n"
-        f"Sawaal puchiye ya photo bhejiye!"
+        f"Online and ready, {user_name}!\n\n"
+        f"I am Jarvis AI, created and owned by Gaurav Sir.\n\n"
+        f"🔹 Direct NEET/JEE Doubt Solver\n"
+        f"🔹 Instant High-Accuracy Image Reading\n\n"
+        f"Bataiye, aaj kya solve karna hai?"
     )
     await update.message.reply_text(msg)
 
@@ -135,7 +135,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     
     if not check_user_limit(user_id):
-        await update.message.reply_text("Daily limit finished! Kal try karein.")
+        await update.message.reply_text("Aapka daily limit (20 messages) khatam ho gaya hai. Kal dubara try karein!")
         return
 
     text = update.message.text or update.message.caption or ""
@@ -144,61 +144,83 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_owner = (int(user_id) == int(OWNER_ID))
     boss_title = "Gaurav Sir" if is_owner else user_name
 
-    system_prompt = (
-        f"You are Jarvis AI, created and owned by Gaurav Sir. You are speaking with {boss_title}. "
-        f"Give direct, short, accurate answers. "
-        f"Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text bullet points (🔹) only."
+    system_instruction = (
+        f"You are Jarvis AI, created and owned by Gaurav Sir. "
+        f"You are speaking with {boss_title}. "
+        f"Tone: Intelligent, sharp, respectful, and direct.\n"
+        f"Rules:\n"
+        f"1. Give direct answers immediately without fluff.\n"
+        f"2. Absolutely NO dollar signs ($) or LaTeX math syntax.\n"
+        f"3. Absolutely NO markdown asterisks (*).\n"
+        f"4. Use plain text and simple bullet points (🔹)."
     )
 
-    # 1. PHOTO HANDLER (GEMINI VISION VIA PIL)
+    if not client:
+        await update.message.reply_text("GEMINI_API_KEY missing hai Render environment variables me.")
+        return
+
+    # 1. PHOTO HANDLER (OFFICIAL GOOGLE-GENAI SDK + PILLOW)
     if photo:
-        status_msg = await update.message.reply_text("📸 Scanning image...")
+        status_msg = await update.message.reply_text("Scanning image...")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             img_bytes = await tg_file.download_as_bytearray()
+            
+            # PIL Image Conversion (Prevents crash)
             image = Image.open(io.BytesIO(img_bytes))
             
-            prompt = f"{system_prompt}\nUser Query: {text}\nSolve this image directly step-by-step."
+            prompt = f"{system_instruction}\nUser Query: {text}\nSolve this image directly in brief."
             
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            res = model.generate_content([prompt, image])
+            # Official GenAI SDK Method
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[prompt, image]
+            )
             
-            ans = clean_response_text(res.text) if res and res.text else "Image read nahi ho paayi."
+            ans = clean_response_text(response.text) if response and response.text else "Image clear nahi hai, dobara bhejein."
+            
             await status_msg.delete()
             await update.message.reply_text(ans)
             return
         except Exception as e:
-            await status_msg.edit_text(f"⚠️ Vision Error: {e}")
-            return
-
-    # 2. TEXT HANDLER (GROQ FAST ENGINE)
-    if text:
-        if groq_client:
+            # Fallback to 2.0-flash if needed
             try:
-                completion = groq_client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": text}
-                    ],
-                    model="llama-3.3-70b-versatile",
-                    max_tokens=600
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[prompt, image]
                 )
-                reply = completion.choices[0].message.content
-                await update.message.reply_text(clean_response_text(reply))
+                ans = clean_response_text(response.text)
+                await status_msg.delete()
+                await update.message.reply_text(ans)
                 return
-            except Exception as e:
-                print(f"Groq Text Error: {e}")
+            except Exception as err:
+                await status_msg.edit_text(f"Vision Error: {err}")
+                return
 
-        # Fallback to Gemini for text if Groq fails
+    # 2. TEXT HANDLER (OFFICIAL GOOGLE-GENAI SDK)
+    if text:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            res = model.generate_content(f"{system_prompt}\nUser Query: {text}")
-            await update.message.reply_text(clean_response_text(res.text))
+            full_prompt = f"{system_instruction}\nUser Query: {text}"
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=full_prompt
+            )
+            
+            ans = clean_response_text(response.text) if response and response.text else "Response generate nahi ho paaya."
+            await update.message.reply_text(ans)
         except Exception as e:
-            await update.message.reply_text(f"System Error: {e}")
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=full_prompt
+                )
+                ans = clean_response_text(response.text)
+                await update.message.reply_text(ans)
+            except Exception as err:
+                await update.message.reply_text(f"System Error: {err}")
 
 # ----------------------------------------------------
-# MAIN
+# MAIN EXECUTION
 # ----------------------------------------------------
 def main():
     init_db()
