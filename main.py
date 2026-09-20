@@ -402,53 +402,59 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# VISION SOLVER ENGINE
+# ✅ ISKO PASTE KARO (NEW WORKING CODE)
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
-    prompt = user_text or "Solve this NEET/JEE question directly in brief. Direct answer + formula first. Do NOT use dollar signs or latex symbols."
+    prompt = (
+        "Solve this NEET/JEE question directly and in brief. "
+        "Rules:\n"
+        "1. Direct final answer and formula first.\n"
+        "2. Brief step-by-step solution.\n"
+        "3. Do NOT use dollar signs ($) or LaTeX notation. Write formulas in plain clear text.\n"
+        "4. Do NOT use markdown asterisks (*). Use simple bullet points (🔹)."
+    )
+    if user_text:
+        prompt += f"\nUser Question/Note: {user_text}"
 
+    # 1. Gemini Vision Engine
     if GEMINI_API_KEY:
-        gemini_candidates = ["gemini-2.0-flash", "gemini-1.5-flash", "models/gemini-2.0-flash"]
-        image_data = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
+        gemini_candidates = ["gemini-2.0-flash", "gemini-1.5-flash"]
+        image_data = {"mime_type": "image/jpeg", "data": bytes(image_bytes)}
 
         for m_name in gemini_candidates:
             try:
                 g_model = genai.GenerativeModel(m_name)
-                res = g_model.generate_content([prompt, image_data[0]])
+                res = g_model.generate_content([prompt, image_data])
                 if res and res.text:
                     return res.text
-            except Exception:
+            except Exception as e:
+                print(f"Gemini Vision Error ({m_name}): {e}")
                 continue
 
+    # 2. Groq Vision Fallback Engine
     if groq_client:
-        groq_vision_candidates = ["llama-3.2-11b-vision-preview"]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
-        for gv_model in groq_vision_candidates:
-            try:
-                completion = groq_client.chat.completions.create(
-                    model=gv_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                            ]
-                        }
-                    ],
-                    max_tokens=500
-                )
-                if completion.choices[0].message.content:
-                    return completion.choices[0].message.content
-            except Exception:
-                continue
+        try:
+            completion = groq_client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                        ]
+                    }
+                ],
+                max_tokens=600
+            )
+            if completion.choices[0].message.content:
+                return completion.choices[0].message.content
+        except Exception as e:
+            print(f"Groq Vision Error: {e}")
 
-    return "Unable to process image. Please send a clearer picture."
-
-# ----------------------------------------------------
-# MESSAGE ROUTER (JARVIS FAST NEET PERSONA)
-# ----------------------------------------------------
+    return "Solution generate nahi ho paaya. Kripya image dubara bhejein."
+    
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
