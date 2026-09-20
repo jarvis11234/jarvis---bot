@@ -406,35 +406,19 @@ def save_chat_memory(chat_id, user_name, text):
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
     prompt = (
-        "Solve this NEET/JEE question directly and in brief. "
-        "Rules:\n"
-        "1. Direct final answer and formula first.\n"
+        "Solve this NEET/JEE question directly in brief.\n"
+        "1. Give direct final answer and main formula first.\n"
         "2. Brief step-by-step solution.\n"
-        "3. Do NOT use dollar signs ($) or LaTeX notation. Write formulas in plain clear text.\n"
-        "4. Do NOT use markdown asterisks (*). Use simple bullet points (🔹)."
+        "3. Absolute NO dollar signs ($) or LaTeX notation.\n"
+        "4. Simple bullet points (🔹) only."
     )
     if user_text:
-        prompt += f"\nUser Question/Note: {user_text}"
+        prompt += f"\nUser Query: {user_text}"
 
-    # 1. Gemini Vision Engine
-    if GEMINI_API_KEY:
-        gemini_candidates = ["gemini-2.0-flash", "gemini-1.5-flash"]
-        image_data = {"mime_type": "image/jpeg", "data": bytes(image_bytes)}
-
-        for m_name in gemini_candidates:
-            try:
-                g_model = genai.GenerativeModel(m_name)
-                res = g_model.generate_content([prompt, image_data])
-                if res and res.text:
-                    return res.text
-            except Exception as e:
-                print(f"Gemini Vision Error ({m_name}): {e}")
-                continue
-
-    # 2. Groq Vision Fallback Engine
+    # 1. Try Groq Vision Engine
     if groq_client:
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
         try:
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
             completion = groq_client.chat.completions.create(
                 model="llama-3.2-11b-vision-preview",
                 messages=[
@@ -453,7 +437,20 @@ def process_vision_query(image_bytes, user_text):
         except Exception as e:
             print(f"Groq Vision Error: {e}")
 
-    return "Solution generate nahi ho paaya. Kripya image dubara bhejein."
+    # 2. Try Gemini Vision Fallback Engine
+    if GEMINI_API_KEY:
+        try:
+            genai.configure(api_key=GEMINI_API_KEY)
+            g_model = genai.GenerativeModel("gemini-1.5-flash")
+            image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
+            res = g_model.generate_content([prompt, image_parts[0]])
+            if res and res.text:
+                return res.text
+        except Exception as e:
+            print(f"Gemini Vision Error: {e}")
+
+    return "⚠️ Solution generate nahi ho paaya. Check karein ki Render Environment Variables me GROQ_API_KEY added hai ya nahi."
+    
     
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
