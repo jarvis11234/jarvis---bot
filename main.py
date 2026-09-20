@@ -222,18 +222,30 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ----------------------------------------------------
 # MAIN EXECUTION
 # ----------------------------------------------------
+# ----------------------------------------------------
+# FIXED MAIN EXECUTION (No Processing Hang)
+# ----------------------------------------------------
+def run_flask_app():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, use_reloader=False)
+
 def main():
     init_db()
     
-    port = int(os.environ.get("PORT", 5000))
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
+    # Daemon thread for Flask server
+    flask_thread = threading.Thread(target=run_flask_app, daemon=True)
+    flask_thread.start()
 
+    # Telegram Bot setup
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start_cmd))
     application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_msg))
     
-    application.run_polling()
+    # Start Polling
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
+
+    
     
