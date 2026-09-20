@@ -49,7 +49,7 @@ BACKUP_MODEL = "qwen/qwen3.6-27b"
 CHAT_MEMORY = {}
 
 # ----------------------------------------------------
-# CLEAN FORMATTING CONVERTER FOR TELEGRAM
+# MIRA AI FORMATTING & CLEANER FOR TELEGRAM
 # ----------------------------------------------------
 def clean_latex_formatting(text: str) -> str:
     if not text:
@@ -68,7 +68,7 @@ def clean_latex_formatting(text: str) -> str:
     text = re.sub(r'\\msg_count\{([^}]+)\}', r'\1', text)
     text = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1 / \2)', text)
     
-    # Powers/Superscripts (10^{23} -> 10²³)
+    # Powers/Superscripts
     superscript_map = {'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻'}
     def replace_power(match):
         power_str = match.group(1)
@@ -94,7 +94,7 @@ def clean_latex_formatting(text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 # ----------------------------------------------------
-# HELPER: TELEGRAM LONG MESSAGE SPLITTER (WITH MARKDOWN)
+# HELPER: TELEGRAM LONG MESSAGE SPLITTER
 # ----------------------------------------------------
 async def send_large_message(update: Update, text: str):
     clean_text = clean_latex_formatting(text)
@@ -228,7 +228,7 @@ def check_user_limit(user_id, username, first_name):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Jarvis v2.0 AI Engine Active!"
+    return "Mira AI Engine (Powered by Gaurav Sir) Active!"
 
 @app.route('/miniapp')
 def mini_app():
@@ -238,22 +238,22 @@ def mini_app():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Jarvis AI VIP</title>
+        <title>Mira AI VIP Pass</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; padding: 20px; display: flex; justify-content: center; }
-            .card { background-color: #1e293b; border-radius: 16px; padding: 24px; text-align: center; max-width: 350px; }
+            .card { background-color: #1e293b; border-radius: 16px; padding: 24px; text-align: center; max-width: 350px; border: 1px solid #38bdf8; }
             .badge { background: #0284c7; padding: 4px 12px; border-radius: 20px; font-size: 12px; }
             .btn { background: #f59e0b; color: #0f172a; border: none; padding: 14px; border-radius: 10px; width: 100%; font-weight: bold; cursor: pointer; }
         </style>
     </head>
     <body>
         <div class="card">
-            <h2>Jarvis AI Assistant v2.0</h2>
+            <h2>Mira AI Assistant ✨</h2>
             <span class="badge">Daily Limit: 10 Messages</span>
-            <p style="margin-top:10px;">Upgrade to VIP for unlimited access, Vision Doubt Solving & Deep Reasoning Mode.</p>
+            <p style="margin-top:10px;">Upgrade to VIP for unlimited chatting, vision problem solving & deep reasoning mode!</p>
             <div style="font-size: 24px; color: #f59e0b; margin: 15px 0;">⭐ 50 Stars</div>
-            <button class="btn" onclick="Telegram.WebApp.sendData('/buyvip'); Telegram.WebApp.close();">Upgrade to VIP</button>
+            <button class="btn" onclick="Telegram.WebApp.sendData('/buyvip'); Telegram.WebApp.close();">Get VIP Pass</button>
         </div>
     </body>
     </html>
@@ -267,13 +267,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     check_user_limit(user.id, user.username, user.first_name)
     welcome_msg = (
-        f"🤖 *Jarvis v2.0 AI Engine Active!*\n\n"
-        f"At your service, Sir! Developed and owned by *Gaurav* Sir.\n\n"
-        f"⚡ *Features Loaded:*\n"
-        f"🔹 Image Doubt Solver (Send Photo)\n"
-        f"🔹 `/think <question>` (Deep Reasoning Mode)\n"
+        f"✨ *Hey {user.first_name}! I'm Mira AI.* ✨\n\n"
+        f"A smart, friendly & powerful AI collaborator built & owned by *Gaurav Sir*!\n\n"
+        f"⚡ *What I Can Do For You:*\n"
+        f"🔹 Image Doubt Solver (Photo bhejo aur solution pao)\n"
+        f"🔹 `/think <question>` (Deep Logic & Reasoning Mode)\n"
         f"🔹 `/web <link>` (Web Link Summarizer)\n"
-        f"🔹 Group Chat Context Memory\n\n"
+        f"🔹 Smart Group & Private Context Memory\n\n"
         f"📊 *Free Limit*: 10 Messages/Day\n"
         f"⭐ *VIP Pass*: Unlimited Access for 50 Stars!"
     )
@@ -282,7 +282,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if int(user_id) != int(OWNER_ID):
-        await update.message.reply_text("⛔ Access Denied! Sirf Owner (Gaurav Sir) hi is command ko run kar sakte hain.")
+        await update.message.reply_text("⛔ Access Denied! Ye command sirf mere creator Gaurav Sir run kar sakte hain.")
         return
 
     try:
@@ -310,7 +310,7 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
     if not allowed:
-        await update.message.reply_text("⚠️ Daily Limit Reached, Sir! Upgrade to VIP.")
+        await update.message.reply_text("⚠️ Daily Limit Reached! VIP upgrade kijiye unlimited access ke liye.")
         return
 
     query = " ".join(context.args)
@@ -318,13 +318,13 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("💡 Usage: `/think How does quantum computing work?`", parse_mode="Markdown")
         return
 
-    thinking_msg = await update.message.reply_text("🧠 *Analyzing with Deep Logic, Sir...*", parse_mode="Markdown")
+    thinking_msg = await update.message.reply_text("🧠 *Thinking deep into logic...*", parse_mode="Markdown")
     
     prompt = f"Provide a step-by-step deep logical explanation with detailed reasoning for: {query}"
     try:
         completion = groq_client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are Jarvis Deep Reasoner. Structure output using clean bold key terms, paragraphs, and bullet points (🔹)."},
+                {"role": "system", "content": "You are Mira AI Deep Reasoner. Creative, sharp, and authentic. Structure output using clean bold terms, clear sections, and bullet points (🔹)."},
                 {"role": "user", "content": prompt}
             ],
             model=SMART_MODEL
@@ -339,7 +339,7 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
     if not allowed:
-        await update.message.reply_text("⚠️ Daily Limit Reached, Sir!")
+        await update.message.reply_text("⚠️ Daily Limit Reached!")
         return
 
     if not context.args:
@@ -347,7 +347,7 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     url = context.args[0]
-    status_msg = await update.message.reply_text("🌐 *Fetching & Summarizing Web Content...*", parse_mode="Markdown")
+    status_msg = await update.message.reply_text("🌐 *Reading & Summarizing Web Content...*", parse_mode="Markdown")
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -356,7 +356,7 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         completion = groq_client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are Jarvis. Summarize this web content into key insights using bold terms and clean bullet points (🔹)."},
+                {"role": "system", "content": "You are Mira AI. Summarize this web content into key insights using bold terms and clean bullet points (🔹)."},
                 {"role": "user", "content": clean_text}
             ],
             model=PRIMARY_MODEL
@@ -365,13 +365,13 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.delete()
         await send_large_message(update, f"📖 *Web Summary for:* `{url}`\n\n{summary}")
     except Exception as e:
-        await status_msg.edit_text(f"⚠️ Failed to read web link: {e}")
+        await status_msg.edit_text(f"⚠️ Web Link read karne me problem aayi: {e}")
 
 async def buyvip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     await context.bot.send_invoice(
         chat_id=chat_id,
-        title="Jarvis AI VIP Upgrade",
+        title="Mira AI VIP Pass",
         description="Lifetime Unlimited Access, Vision & Reasoning Features",
         payload="jarvis_vip_pass",
         provider_token="",
@@ -389,7 +389,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     set_vip_status(user_id, is_vip=1)
-    await update.message.reply_text("🎉 *Payment Successful!* VIP status active ho chuka hai, Sir!", parse_mode="Markdown")
+    await update.message.reply_text("🎉 *Woohoo! Payment Successful!* VIP Status active ho gaya hai!", parse_mode="Markdown")
 
 def save_chat_memory(chat_id, user_name, text):
     if chat_id not in CHAT_MEMORY:
@@ -402,7 +402,7 @@ def save_chat_memory(chat_id, user_name, text):
 # VISION SOLVER ENGINE
 # ----------------------------------------------------
 def process_vision_query(image_bytes, user_text):
-    prompt = user_text or "Solve this question or explain this image step-by-step in detail in natural Hinglish, Sir."
+    prompt = user_text or "Solve this question or explain this image step-by-step in detail in clean Hinglish."
 
     if GEMINI_API_KEY:
         gemini_candidates = [
@@ -459,7 +459,7 @@ def process_vision_query(image_bytes, user_text):
             except Exception:
                 continue
 
-    return "⚠️ System abhi image read nahi kar pa raha hai, Sir. Kripya image ki clarity check karke dobara bhejein."
+    return "⚠️ Image read karne me problem aayi. Image clear karke dobara bhejo!"
 
 # ----------------------------------------------------
 # MESSAGE ROUTER
@@ -482,25 +482,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_type in ["group", "supergroup"]:
         is_mentioned = f"@{bot_username}" in user_msg_lower
-        has_jarvis = "jarvis" in user_msg_lower
+        has_mira = "mira" in user_msg_lower or "jarvis" in user_msg_lower
         is_reply_to_bot = update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
         
-        if not (is_mentioned or has_jarvis or is_reply_to_bot or photo):
+        if not (is_mentioned or has_mira or is_reply_to_bot or photo):
             return
 
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
 
     if not allowed:
         await update.message.reply_text(
-            "⚠️ *Daily Limit Reached, Sir!* Upgrade to VIP 🚀",
+            "⚠️ *Daily Limit Reached!* Unlimited access ke liye VIP pass le lijiye! 🚀",
             parse_mode="Markdown"
         )
         return
 
-    jarvis_system_prompt = (
-        "You are Jarvis v2.0, a highly intelligent and respectful AI assistant owned by Gaurav Sir. "
-        "Always structure your output neatly using bold text for key terms, clean bullet points (🔹), "
-        "and clear paragraph breaks. Address the user politely as Sir or Boss."
+    # MIRA AI PERSONA PROMPT
+    mira_system_prompt = (
+        "You are Mira AI, an authentic, adaptive AI collaborator with a touch of wit and charm. "
+        "You are developed and owned by Gaurav Sir. Your goal is to address the user's intent with insightful, "
+        "clear, and proportional responses in natural Hinglish or English as per user style. "
+        "Structure responses cleanly using bold text for key terms, clear paragraphs, and bullet points (🔹)."
     )
 
     context_str = "\n".join(CHAT_MEMORY.get(chat_id, []))
@@ -508,7 +510,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle Photo Doubts
     if photo:
-        status_msg = await update.message.reply_text("📸 *Solving Question, Sir...*", parse_mode="Markdown")
+        status_msg = await update.message.reply_text("📸 *Analyzing Image...*", parse_mode="Markdown")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
@@ -524,12 +526,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Handle Text Input
     reply = None
     if text:
-                models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
+        models_to_try = [PRIMARY_MODEL, SMART_MODEL, BACKUP_MODEL]
         for m in models_to_try:
             try:
                 chat_completion = groq_client.chat.completions.create(
                     messages=[
-                        {"role": "system", "content": jarvis_system_prompt},
+                        {"role": "system", "content": mira_system_prompt},
                         {"role": "user", "content": full_user_prompt}
                     ],
                     model=m
@@ -543,7 +545,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if reply:
         await send_large_message(update, reply)
     else:
-        await update.message.reply_text("⚠️ System response generate nahi kar pa raha hai, Sir.")
+        await update.message.reply_text("⚠️ Response generate nahi ho paya, please firse try karo!")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -567,75 +569,10 @@ def main():
     application.add_handler(CommandHandler("web", web_command))
     application.add_handler(CommandHandler("buyvip", buyvip_command))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    
+    # Handlers Fixed for Telegram Bot API v20+
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     
-    # Corrected filter handling with exact closed parentheses
-    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
-    application.add_handler(MessageHandler(message_filter, handle_message))
-
-    application.run_polling()
-
-if __name__ == "__main__":
-    # ----------------------------------------------------
-# MAIN EXECUTION (FIXED FOR DEPLOYMENT)
-# ----------------------------------------------------
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-def main():
-    init_db()
-    set_vip_status(OWNER_ID, is_vip=1)
-
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread(target=keep_alive, daemon=True).start()
-
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("users", users_command))
-    application.add_handler(CommandHandler("think", think_command))
-    application.add_handler(CommandHandler("web", web_command))
-    application.add_handler(CommandHandler("buyvip", buyvip_command))
-    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    
-    # SUCCESSFUL PAYMENT HANDLER FIX
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    
-    # MESSAGE HANDLER FIX
-    message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
-    application.add_handler(MessageHandler(message_filter, handle_message))
-
-    application.run_polling()
-
-if __name__ == "__main__":
-    # ----------------------------------------------------
-# MAIN EXECUTION (FIXED FOR DEPLOYMENT)
-# ----------------------------------------------------
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-def main():
-    init_db()
-    set_vip_status(OWNER_ID, is_vip=1)
-
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread(target=keep_alive, daemon=True).start()
-
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("users", users_command))
-    application.add_handler(CommandHandler("think", think_command))
-    application.add_handler(CommandHandler("web", web_command))
-    application.add_handler(CommandHandler("buyvip", buyvip_command))
-    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    
-    # SUCCESSFUL PAYMENT HANDLER FIX
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    
-    # MESSAGE HANDLER FIX
     message_filter = (filters.TEXT | filters.PHOTO) & (~filters.COMMAND)
     application.add_handler(MessageHandler(message_filter, handle_message))
 
@@ -643,6 +580,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-            
-            
