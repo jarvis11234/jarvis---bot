@@ -2,3 +2,4 @@ python-telegram-bot
 groq
 google-generativeai
 flask
+pillow 
