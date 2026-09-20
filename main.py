@@ -24,8 +24,8 @@ from telegram.ext import (
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OWNER_ID = 8298044480  # Backend Owner ID (Gaurav Sir)
-DB_FILE = "jarvis_bot.db"
+OWNER_ID = 8298044480  # Gaurav Sir ID
+DB_FILE = "mira_bot.db"
 
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://jarvis--bot.onrender.com")
 
@@ -40,22 +40,22 @@ if GEMINI_API_KEY:
     except Exception as e:
         print(f"Gemini Init Warning: {e}")
 
-# Groq Active Text Models Stack
+# Text Models
 PRIMARY_MODEL = "openai/gpt-oss-20b"
 SMART_MODEL = "openai/gpt-oss-120b"
 BACKUP_MODEL = "qwen/qwen3.6-27b"
 
-# Group Chat Memory
+# Chat Memory
 CHAT_MEMORY = {}
 
 # ----------------------------------------------------
-# NO-DOLLAR/NO-STAR LATEX & TEXT CLEANER
+# NO-DOLLAR / NO-STAR LATEX & TEXT CLEANER
 # ----------------------------------------------------
 def clean_latex_formatting(text: str) -> str:
     if not text:
         return ""
     
-    # Remove Dollar Signs & LaTeX Delimiters
+    # Remove Dollar Signs & Delimiters
     text = text.replace("$", "")
     text = text.replace("\\(", "").replace("\\)", "")
     text = text.replace("\\[", "").replace("\\]", "")
@@ -80,10 +80,10 @@ def clean_latex_formatting(text: str) -> str:
 
     text = re.sub(r'\^{?([0-9+-]+)}?', replace_power, text)
 
-    # Clean Header formatting (#, ##, ###)
+    # Clean Header formatting
     text = re.sub(r'#+\s*', '', text)
 
-    # Bullet points formatting (🔹)
+    # Bullet points formatting
     lines = text.split('\n')
     cleaned_lines = []
     for line in lines:
@@ -93,7 +93,7 @@ def clean_latex_formatting(text: str) -> str:
         else:
             cleaned_lines.append(line)
             
-    # Remove leftover double stars
+    # Remove double stars
     cleaned_result = "\n".join(cleaned_lines).strip()
     return cleaned_result.replace("**", "")
 
@@ -184,16 +184,7 @@ def check_user_limit(user_id, username, first_name):
 
     is_vip, msg_count, last_reset = row
 
-    if is_owner:
-        cursor.execute(
-            "UPDATE users SET is_vip = 1, username = ?, first_name = ?, last_seen = CURRENT_TIMESTAMP WHERE user_id = ?",
-            (username or "N/A", first_name or "Gaurav", user_id)
-        )
-        conn.commit()
-        conn.close()
-        return True, msg_count, 1
-
-    if is_vip == 1:
+    if is_owner or is_vip == 1:
         cursor.execute(
             "UPDATE users SET username = ?, first_name = ?, last_seen = CURRENT_TIMESTAMP WHERE user_id = ?",
             (username or "N/A", first_name or "User", user_id)
@@ -226,7 +217,7 @@ def check_user_limit(user_id, username, first_name):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Jarvis AI Core (Owned by Gaurav Sir) Online!"
+    return "Mira AI Core Online!"
 
 @app.route('/miniapp')
 def mini_app():
@@ -236,7 +227,7 @@ def mini_app():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Jarvis VIP Pass</title>
+        <title>Mira VIP Pass</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; padding: 20px; display: flex; justify-content: center; }
@@ -247,9 +238,9 @@ def mini_app():
     </head>
     <body>
         <div class="card">
-            <h2>Jarvis AI Assistant</h2>
+            <h2>Mira AI Assistant</h2>
             <span class="badge">Daily Limit: 10 Messages</span>
-            <p style="margin-top:10px;">Upgrade to VIP for unlimited chatting, photo doubt solver & fast NEET solutions!</p>
+            <p style="margin-top:10px;">Upgrade to VIP for unlimited chatting & fast doubt solver!</p>
             <div style="font-size: 24px; color: #f59e0b; margin: 15px 0;">50 Stars</div>
             <button class="btn" onclick="Telegram.WebApp.sendData('/buyvip'); Telegram.WebApp.close();">Get VIP Pass</button>
         </div>
@@ -265,22 +256,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     check_user_limit(user.id, user.username, user.first_name)
     welcome_msg = (
-        f"Jarvis AI Online, Welcome {user.first_name}.\n\n"
-        f"I am an advanced AI assistant created and owned by Gaurav Sir.\n\n"
-        f"Capabilities:\n"
-        f"🔹 Direct NEET/JEE Fast Problem Solving\n"
-        f"🔹 Photo Doubt Solver (Send image directly)\n"
-        f"🔹 /think <question> (Deep Logic & Reasoning)\n"
-        f"🔹 /web <link> (Web Link Summarizer)\n\n"
-        f"Status: Daily Limit - 10 Messages\n"
-        f"VIP Pass: Unlimited Access via /buyvip"
+        f"Hey {user.first_name}! I am Mira AI.\n\n"
+        f"Created and owned by Gaurav Sir.\n\n"
+        f"Features:\n"
+        f"🔹 NEET/JEE Fast Solutions\n"
+        f"🔹 Image Problem Solver\n"
+        f"🔹 /think <question> (Deep Reasoning)\n"
+        f"🔹 /web <link> (Web Summarizer)\n\n"
+        f"VIP Pass: /buyvip for unlimited access!"
     )
     await update.message.reply_text(welcome_msg)
 
 async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if int(user_id) != int(OWNER_ID):
-        await update.message.reply_text("Access Denied! Reserved for Gaurav Sir only.")
+        await update.message.reply_text("Access Denied!")
         return
 
     try:
@@ -291,10 +281,10 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
 
         if not rows:
-            await update.message.reply_text("No users registered in database.")
+            await update.message.reply_text("No users found.")
             return
 
-        msg = "Registered Users List (Gaurav Sir Access):\n\n"
+        msg = "Registered Users:\n\n"
         for r in rows:
             uid, uname, fname, is_vip, count = r
             status = "[VIP/Owner]" if (is_vip == 1 or int(uid) == int(OWNER_ID)) else f"Free ({count}/10 msgs)"
@@ -318,13 +308,13 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     thinking_msg = await update.message.reply_text("Analyzing deep logic...")
     
-    prompt = f"Solve directly for NEET/JEE student in brief. No intro, no filler: {query}"
+    prompt = f"Solve directly for NEET/JEE student in brief: {query}"
     try:
         completion = groq_client.chat.completions.create(
             messages=[
                 {
                     "role": "system", 
-                    "content": "You are Jarvis AI, created by Gaurav Sir. Give fast, crisp NEET-level solutions. Do NOT use dollar signs or latex formatting. Direct answer and short steps only."
+                    "content": "You are Mira AI, created by Gaurav Sir. Give fast NEET solutions. Do NOT use dollar signs or latex symbols. Direct answer and short steps only."
                 },
                 {"role": "user", "content": prompt}
             ],
@@ -358,7 +348,7 @@ async def web_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         completion = groq_client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are Jarvis AI. Summarize concisely with key bullet points (🔹). No dollars or stars."},
+                {"role": "system", "content": "You are Mira AI. Summarize concisely with key bullet points (🔹). No dollars or stars."},
                 {"role": "user", "content": clean_text}
             ],
             model=PRIMARY_MODEL,
@@ -374,9 +364,9 @@ async def buyvip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     await context.bot.send_invoice(
         chat_id=chat_id,
-        title="Jarvis AI VIP Pass",
-        description="Unlimited Access, Fast NEET Solutions & Photo Solver",
-        payload="jarvis_vip_pass",
+        title="Mira AI VIP Pass",
+        description="Unlimited Access & Fast Doubt Solver",
+        payload="mira_vip_pass",
         provider_token="",
         currency="XTR",
         prices=[LabeledPrice("VIP Access", 50)]
@@ -384,7 +374,7 @@ async def buyvip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
-    if query.invoice_payload != "jarvis_vip_pass":
+    if query.invoice_payload != "mira_vip_pass":
         await query.answer(ok=False, error_message="Payment validation failed.")
     else:
         await query.answer(ok=True)
@@ -402,61 +392,58 @@ def save_chat_memory(chat_id, user_name, text):
         CHAT_MEMORY[chat_id].pop(0)
 
 # ----------------------------------------------------
-# ✅ ISKO PASTE KARO (NEW WORKING CODE)
+# ORIGINAL MIRA VISION SOLVER ENGINE
 # ----------------------------------------------------
-# ✅ [POINT A] YAHAN PASTE KARO (NEW WORKING CODE)
 def process_vision_query(image_bytes, user_text):
     prompt = (
-        "Solve this NEET/JEE question directly in brief.\n"
-        "Rules:\n"
-        "1. Give direct final answer and main formula first.\n"
+        "Solve this question directly and in brief.\n"
+        "1. Direct final answer and main formula first.\n"
         "2. Brief step-by-step solution.\n"
-        "3. Absolute NO dollar signs ($) or LaTeX notation.\n"
+        "3. Absolutely DO NOT use dollar signs ($) or LaTeX notation.\n"
         "4. Simple bullet points (🔹) only."
     )
     if user_text:
         prompt += f"\nUser Query: {user_text}"
 
-    # 1. Primary Engine: Gemini Flash (Fast & Reliable Vision)
+    # Try Gemini Vision First
     if GEMINI_API_KEY:
-        for model_name in ["gemini-1.5-flash", "gemini-2.0-flash"]:
-            try:
-                genai.configure(api_key=GEMINI_API_KEY)
-                g_model = genai.GenerativeModel(model_name)
-                image_blob = {"mime_type": "image/jpeg", "data": bytes(image_bytes)}
-                response = g_model.generate_content([prompt, image_blob])
-                if response and response.text:
-                    return response.text
-            except Exception as err:
-                print(f"Gemini Vision Error ({model_name}): {err}")
+        try:
+            genai.configure(api_key=GEMINI_API_KEY)
+            g_model = genai.GenerativeModel("gemini-1.5-flash")
+            image_parts = [{"mime_type": "image/jpeg", "data": bytes(image_bytes)}]
+            res = g_model.generate_content([prompt, image_parts[0]])
+            if res and res.text:
+                return res.text
+        except Exception as e:
+            print(f"Gemini Vision Error: {e}")
 
-    # 2. Backup Engine: Groq Llama Vision
+    # Backup: Groq Vision
     if groq_client:
         try:
-            b64_img = base64.b64encode(image_bytes).decode("utf-8")
-            comp = groq_client.chat.completions.create(
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            completion = groq_client.chat.completions.create(
                 model="llama-3.2-11b-vision-preview",
                 messages=[
                     {
                         "role": "user",
                         "content": [
                             {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                         ]
                     }
                 ],
                 max_tokens=600
             )
-            if comp.choices[0].message.content:
-                return comp.choices[0].message.content
-        except Exception as err:
-            print(f"Groq Vision Error: {err}")
+            if completion.choices[0].message.content:
+                return completion.choices[0].message.content
+        except Exception as e:
+            print(f"Groq Vision Error: {e}")
 
-    return "⚠️ Image read nahi ho pa rahi hai. Kripya clear photo dubara bhej kar dekhein."
-# ✅ [POINT B] YAHAN TAK PASTE END
+    return "Image process nahi ho paaye. Kripya image dubara bhejein."
 
-    
-    
+# ----------------------------------------------------
+# MESSAGE ROUTER (MIRA PERSONA)
+# ----------------------------------------------------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
@@ -475,7 +462,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_type in ["group", "supergroup"]:
         is_mentioned = f"@{bot_username}" in user_msg_lower
-        has_mira = "jarvis" in user_msg_lower or "mira" in user_msg_lower
+        has_mira = "mira" in user_msg_lower
         is_reply_to_bot = update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
         
         if not (is_mentioned or has_mira or is_reply_to_bot or photo):
@@ -484,18 +471,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     allowed, count, is_vip = check_user_limit(user.id, user.username, user.first_name)
 
     if not allowed:
-        await update.message.reply_text("Daily Limit Reached! Use /buyvip to get unlimited access.")
+        await update.message.reply_text("Daily Limit Reached! Use /buyvip for unlimited access.")
         return
 
-    # JARVIS CRISP NEET PROMPT (NO DOLLARS / NO STARS / HIGH SPEED)
-    jarvis_system_prompt = (
-        "You are Jarvis AI, an ultra-fast intelligent assistant developed and owned by Gaurav Sir. "
-        "Target Audience: NEET and JEE Aspirants.\n"
+    mira_system_prompt = (
+        "You are Mira AI, created and owned by Gaurav Sir. "
         "Rules:\n"
-        "1. Give direct, precise, to-the-point answers without long introductions or useless chatter.\n"
-        "2. State key formulas and direct answer FIRST, followed by minimal necessary steps.\n"
-        "3. NEVER use dollar signs ($) or LaTeX notation. Write formulas in plain clear text.\n"
-        "4. Do NOT use markdown asterisks (*). Use simple bullet points (🔹)."
+        "1. Be helpful, clear, and direct.\n"
+        "2. Do NOT use dollar signs ($) or LaTeX notation. Write math/formulas in plain clear text.\n"
+        "3. Do NOT use markdown asterisks (*). Use simple bullet points (🔹)."
     )
 
     context_str = "\n".join(CHAT_MEMORY.get(chat_id, []))
@@ -503,17 +487,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Photo Handling
     if photo:
-        status_msg = await update.message.reply_text("Analyzing image...")
+        status_msg = await update.message.reply_text("Processing image...")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             image_bytes = await tg_file.download_as_bytearray()
             
-            solution = process_vision_query(image_bytes, f"Solve directly for NEET in brief: {text}")
+            solution = process_vision_query(image_bytes, text)
             await status_msg.delete()
             await send_large_message(update, solution)
             return
         except Exception as e:
-            await status_msg.edit_text(f"Error processing image: {e}")
+            await status_msg.edit_text(f"Image Error: {e}")
             return
 
     # Text Handling
@@ -524,7 +508,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 chat_completion = groq_client.chat.completions.create(
                     messages=[
-                        {"role": "system", "content": jarvis_system_prompt},
+                        {"role": "system", "content": mira_system_prompt},
                         {"role": "user", "content": full_user_prompt}
                     ],
                     model=m,
@@ -539,7 +523,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if reply:
         await send_large_message(update, reply)
     else:
-        await update.message.reply_text("System unable to generate response. Please retry.")
+        await update.message.reply_text("Response generate nahi ho paaya. Please retry.")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
