@@ -115,7 +115,7 @@ def check_user_limit(user_id):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Gaurav Emoji Friendly Engine Online"
+    return "Gaurav Proper Persona Engine Online"
 
 # ----------------------------------------------------
 # BOT HANDLERS & PERSONA
@@ -123,9 +123,8 @@ def home():
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     msg = (
-        f"Arre {user_name} bhai! Kaise ho? 😊\n\n"
-        f"Aaram se batao kya baat hai, main poori baat dhyan se sun raha hu 🎧. "
-        f"Koi doubt ho ya waise hi baat karni ho, seedha bolo! 👍"
+        f"Haan {user_name} bhai, bataiye kaise hain? 😊\n\n"
+        f"Aap aaram se apni baat boliye ya koi doubt ho toh bhej dijiye, main sun raha hoon."
     )
     await update.message.reply_text(msg)
 
@@ -134,7 +133,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     
     if not check_user_limit(user_id):
-        await update.message.reply_text("Haha, aaj ke 20 messages poore ho gaye bhai! 😂 Kal aaram se baat karenge 👍")
+        await update.message.reply_text("Bhai aaj ke 20 messages poore ho gaye hain. Kal aaram se baat karte hain 👍")
         return
 
     text = update.message.text or update.message.caption or ""
@@ -142,33 +141,33 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_owner = (int(user_id) == int(OWNER_ID))
 
-    # GAURAV SIR'S PERSONA WITH EMOJIS
+    # GAURAV SIR'S REAL MATURE PERSONA
     if is_owner:
         system_prompt = (
             "You are Gaurav Sir's AI representative speaking directly to Gaurav Sir (your owner). "
-            "Be ultra-loyal, cheerful, sharp, helpful, and answer immediately. Use relevant emojis (😊, 👍, 🔥, 🚀). "
+            "Be ultra-loyal, sharp, direct, helpful, and polite. Answer immediately without fluff or fake laughter. "
             "Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text and simple bullets (🔹) only."
         )
     else:
         system_prompt = (
             f"You are Gaurav Sir talking to a student/friend named {user_name}. "
-            "Personality Guidelines:\n"
-            "1. Cheerful, laughing, and warm tone ('Haha', 'Arre waah', 'Sahi hai bhai').\n"
-            "2. EMOJI USAGE: Use friendly and context-matching emojis naturally throughout responses (😊, 😂, 👍, 🔥, 📚, 💡).\n"
-            "3. Active Listener: Pay close attention to what the user says, show genuine interest and empathy.\n"
-            "4. Natural Hinglish ('Bhai', 'Haan bilkul', 'Samajh gaya teri baat').\n"
-            "Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text and simple bullets (🔹) only."
+            "Personality & Communication Rules:\n"
+            "1. Speak naturally, respectfully, and warmly in Hinglish.\n"
+            "2. NEVER use fake laughing words like 'haha', 'hehe', or repetitive filler phrases. Keep the conversation real and mature.\n"
+            "3. Be a patient listener: Pay close attention to what the user is saying, answer thoughtfully and accurately.\n"
+            "4. Use tasteful, minimal emojis only when relevant (e.g. 😊, 👍, 📚).\n"
+            "Strict Formatting: NO dollar signs ($), NO LaTeX math notation, NO markdown asterisks (*). Plain text and clean bullet points (🔹) only."
         )
 
     # 1. PHOTO HANDLER
     if photo:
-        status_msg = await update.message.reply_text("Haan bhai, photo dekh raha hu... ek sec de 🔍")
+        status_msg = await update.message.reply_text("Haan bhai, photo dekh raha hoon... ek second de 🔍")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             img_bytes = await tg_file.download_as_bytearray()
             image = Image.open(io.BytesIO(img_bytes))
             
-            prompt = f"{system_prompt}\nUser Query: {text}\nSolve or explain this photo step-by-step with clear explanation and emojis."
+            prompt = f"{system_prompt}\nUser Query: {text}\nSolve or explain this photo step-by-step cleanly."
             
             response_text = None
             for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
@@ -185,10 +184,10 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if response_text:
                 await update.message.reply_text(clean_response_text(response_text))
             else:
-                await update.message.reply_text("Haha, photo thodi blurry lag rahi hai bhai! 😂 Ek baar saaf karke dubara bhej de 📸")
+                await update.message.reply_text("Bhai photo thodi clear nahi hai, ek baar dobara saaf karke bhej de.")
             return
         except Exception as e:
-            await status_msg.edit_text(f"Error aaya bhai 😅: {e}")
+            await status_msg.edit_text(f"Error aaya: {e}")
             return
 
     # 2. TEXT HANDLER
@@ -202,7 +201,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ],
                     model="llama-3.3-70b-versatile",
                     max_tokens=600,
-                    temperature=0.7
+                    temperature=0.6
                 )
                 reply = completion.choices[0].message.content
                 await update.message.reply_text(clean_response_text(reply))
@@ -225,7 +224,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if response_text:
             await update.message.reply_text(clean_response_text(response_text))
         else:
-            await update.message.reply_text("Haha, arre kya baat hai bhai! 😂 Ek baar dubara bol na, thoda saaf karke? 👍")
+            await update.message.reply_text("Arre bhai, ek baar dobara bolna, samajh nahi aaya properly.")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -248,3 +247,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+                        
