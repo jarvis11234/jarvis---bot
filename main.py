@@ -23,11 +23,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OWNER_ID = 8298044480  # Gaurav Sir
-DB_FILE = "jarvis_mira.db"
+DB_FILE = "gaurav_friendly_clone.db"
 
 app = Flask(__name__)
 
-# Clients Setup
+# API Clients Initialise
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 if GEMINI_API_KEY:
@@ -61,7 +61,7 @@ def clean_response_text(text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 # ----------------------------------------------------
-# DATABASE & LIMITS
+# DATABASE & USAGE LIMITS
 # ----------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -78,7 +78,7 @@ def init_db():
 
 def check_user_limit(user_id):
     if int(user_id) == int(OWNER_ID):
-        return True  # Unlimited access for Gaurav Sir
+        return True  # Unlimited for Gaurav Sir
         
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -115,7 +115,7 @@ def check_user_limit(user_id):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Mira Engine Online (Groq + Gemini Vision)"
+    return "Gaurav Friendly Clone Engine Online"
 
 # ----------------------------------------------------
 # BOT HANDLERS & PERSONA
@@ -123,10 +123,8 @@ def home():
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     msg = (
-        f"Namaste {user_name}! Main Mira AI hoon, Gaurav Sir dwara manage kiya gaya.\n\n"
-        f"🔹 Lightning-Fast Text Answers (Powered by Groq)\n"
-        f"🔹 High-Accuracy Image Reading (Powered by Gemini Vision)\n\n"
-        f"Aap apna koi bhi sawaal ya photo bhej sakte hain!"
+        f"Arre {user_name} bhai! Kaise ho?\n\n"
+        f"Aaram se batao kya baat hai, main sun raha hu. Koi doubt ya question ho toh seedha bhej do!"
     )
     await update.message.reply_text(msg)
 
@@ -135,32 +133,42 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     
     if not check_user_limit(user_id):
-        await update.message.reply_text("Daily limit (20 messages) finished! Kal try karein.")
+        await update.message.reply_text("Haha, aaj ke 20 messages poore ho gaye bhai! Kal aaram se baat karenge.")
         return
 
     text = update.message.text or update.message.caption or ""
     photo = update.message.photo
 
     is_owner = (int(user_id) == int(OWNER_ID))
-    boss_title = "Gaurav Sir" if is_owner else user_name
 
-    system_prompt = (
-        f"You are Mira AI, created and owned by Gaurav Sir. You are speaking with {boss_title}. "
-        f"Give direct, short, accurate answers. "
-        f"Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text bullet points (🔹) only."
-    )
+    # GAURAV SIR'S HASMUKH & LISTENER PERSONA
+    if is_owner:
+        system_prompt = (
+            "You are Gaurav Sir's AI representative. You are talking directly to Gaurav Sir (your owner). "
+            "Be ultra-loyal, cheerful, sharp, and helpful. Answer immediately."
+            "Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text and simple bullets (🔹) only."
+        )
+    else:
+        system_prompt = (
+            f"You are Gaurav Sir talking to a student/friend named {user_name}. "
+            "Personality & Style:\n"
+            "1. You are very cheerful, friendly, and smile/laugh often in your tone (use words like 'Haha', 'Sahi hai', 'Arre waah').\n"
+            "2. You are an ACTIVE LISTENER: Pay close attention to what the user is feeling or asking, show empathy, and respond thoughtfully.\n"
+            "3. Speak in natural Hinglish like 'Bhai', 'Haan bilkul', 'Samajh gaya teri baat'.\n"
+            "4. Never get rude or arrogant. Stay warm, positive, and helpful.\n"
+            "Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text and simple bullets (🔹) only."
+        )
 
     # 1. PHOTO HANDLER (GEMINI VISION VIA PIL)
     if photo:
-        status_msg = await update.message.reply_text("📸 Scanning image...")
+        status_msg = await update.message.reply_text("Haan bhai, photo dekh raha hu... ek sec de.")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             img_bytes = await tg_file.download_as_bytearray()
             image = Image.open(io.BytesIO(img_bytes))
             
-            prompt = f"{system_prompt}\nUser Query: {text}\nSolve this image directly step-by-step."
+            prompt = f"{system_prompt}\nUser Query: {text}\nSolve this step-by-step nicely."
             
-            # Multi-model fallback for Gemini Vision
             response_text = None
             for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
                 try:
@@ -176,10 +184,10 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if response_text:
                 await update.message.reply_text(clean_response_text(response_text))
             else:
-                await update.message.reply_text("Image read nahi ho paayi, dobara photo bhejein.")
+                await update.message.reply_text("Haha, photo thodi blurry hai bhai, ek baar saaf karke wapas bhej de!")
             return
         except Exception as e:
-            await status_msg.edit_text(f"⚠️ Vision Error: {e}")
+            await status_msg.edit_text(f"Error aaya bhai: {e}")
             return
 
     # 2. TEXT HANDLER (GROQ FAST ENGINE WITH GEMINI FALLBACK)
@@ -200,7 +208,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"Groq Text Error: {e}")
 
-        # Fallback to Gemini for text if Groq fails
+        # Fallback to Gemini for text
         response_text = None
         for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
             try:
@@ -215,10 +223,10 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if response_text:
             await update.message.reply_text(clean_response_text(response_text))
         else:
-            await update.message.reply_text("System Error: Response generate nahi ho paaya.")
+            await update.message.reply_text("Haha, baat samajh nahi aayi dobara bol na bhai!")
 
 # ----------------------------------------------------
-# MAIN EXECUTION (NON-BLOCKING FLASK + TELEGRAM)
+# MAIN EXECUTION
 # ----------------------------------------------------
 def run_flask_app():
     port = int(os.environ.get("PORT", 5000))
@@ -227,16 +235,13 @@ def run_flask_app():
 def main():
     init_db()
     
-    # Daemon thread for Flask server
     flask_thread = threading.Thread(target=run_flask_app, daemon=True)
     flask_thread.start()
 
-    # Telegram Bot setup
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start_cmd))
     application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_msg))
     
-    # Start Polling
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
