@@ -6,8 +6,6 @@ import threading
 import random
 from PIL import Image
 from flask import Flask
-from groq import Groq
-from google import genai
 from telegram import Update, ReactionTypeEmoji
 from telegram.ext import (
     ApplicationBuilder,
@@ -16,6 +14,18 @@ from telegram.ext import (
     CommandHandler,
     filters
 )
+
+# Naya Gemini SDK
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
+# Optional Groq SDK
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 
 # ----------------------------------------------------
 # CONFIGURATION
@@ -29,8 +39,8 @@ DB_FILE = "male_ai_buddy.db"
 app = Flask(__name__)
 
 # API Clients Initialization
-groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+groq_client = Groq(api_key=GROQ_API_KEY) if (Groq and GROQ_API_KEY) else None
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if (genai and GEMINI_API_KEY) else None
 
 # ----------------------------------------------------
 # FORMAT CLEANER
@@ -57,30 +67,6 @@ def clean_response_text(text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 # ----------------------------------------------------
-# SMART LOCAL CHAT FALLBACK (NO API DEPENDENCY)
-# ----------------------------------------------------
-def get_local_smart_reply(text: str) -> str:
-    """Agar API response na de, toh ye local reply karega taaki bot 'bahera' na lage."""
-    t = text.lower().strip()
-    
-    if t in ["hi", "hello", "hey", "hii", "helo", "hlo"]:
-        return random.choice([
-            "Haan bhai! Bol kya haal chaal?",
-            "Haan ji, bataiye kya chal raha hai?",
-            "Hello bhai! Bata kaise madad karun?"
-        ])
-    elif "kaise ho" in t or "kya haal" in t:
-        return "Main badhiya hoon bhai! Tu bata, tera kya chal raha hai?"
-    elif "kya kar rahe" in t or "kya kar raha" in t:
-        return "Bas bhai, yahan tere messages ka wait kar raha hoon! Bata kya kaam hai?"
-    elif "naam" in t:
-        return "Main tera AI buddy hoon bhai!"
-    elif "shukriya" in t or "thanks" in t or "thank you" in t:
-        return "Arre koi baat nahi bhai, hamesha hazir hoon! 👍"
-    
-    return None
-
-# ----------------------------------------------------
 # SMART MESSAGE REACTION FUNCTION
 # ----------------------------------------------------
 async def send_smart_reaction(update: Update, text: str, is_photo: bool):
@@ -90,11 +76,11 @@ async def send_smart_reaction(update: Update, text: str, is_photo: bool):
             reaction_emoji = random.choice(["👀", "👏", "🔥", "👍"])
         elif any(word in text_lower for word in ["hi", "hello", "hey", "hii"]):
             reaction_emoji = "👍"
-        elif any(word in text_lower for word in ["haha", "lol", "joke", "chutkula"]):
+        elif any(word in text_lower for word in ["haha", "lol", "joke", "funny"]):
             reaction_emoji = "😂"
         elif any(word in text_lower for word in ["bhai", "bro", "op", "great", "mast"]):
             reaction_emoji = "🔥"
-        elif any(word in text_lower for word in ["thanks", "thank you", "dhanyawad"]):
+        elif any(word in text_lower for word in ["thanks", "thank you", "shukriya"]):
             reaction_emoji = "❤️"
         else:
             if random.random() < 0.7:
@@ -104,7 +90,7 @@ async def send_smart_reaction(update: Update, text: str, is_photo: bool):
 
         await update.message.set_reaction(reaction=[ReactionTypeEmoji(reaction_emoji)])
     except Exception as e:
-        print(f"Reaction Error: {e}")
+        print(f"Reaction Warning: {e}")
 
 # ----------------------------------------------------
 # DATABASE & USAGE LIMITS
@@ -161,7 +147,7 @@ def check_user_limit(user_id):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Male AI Companion Online"
+    return "Male AI Companion Engine Active"
 
 # ----------------------------------------------------
 # SYSTEM PROMPT
@@ -172,7 +158,7 @@ MALE_AI_SYSTEM_PROMPT = (
     "Key Personality Rules:\n"
     "1. Gender Tone: Always speak as a male buddy/brother/friend. Never use female verbs.\n"
     "2. Conversation Style: Relaxed, sharp, helpful, supportive, and natural. Speak like a cool guy friend.\n"
-    "3. Respond to casual greetings and chatter instantly and warmly in Hinglish.\n"
+    "3. Respond to all questions directly, accurately, and naturally.\n"
     "4. Clean Formatting: NO LaTeX symbols, NO dollar signs ($), NO markdown asterisks (*). Plain clean text only."
 )
 
@@ -181,10 +167,7 @@ MALE_AI_SYSTEM_PROMPT = (
 # ----------------------------------------------------
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
-    msg = (
-        f"Haan {user_name}! Kya haal hai bhai? 😊\n\n"
-        f"Main hoon tera AI buddy. Bata kya chal raha hai, koi kaam ho ya waise hi baat karni ho, bol main sun raha hoon! 👍"
-    )
+    msg = f"Haan {user_name}! Kya haal hai bhai? 😊\n\nMain hoon tera AI buddy. Bata kya chal raha hai, bol main sun raha hoon! 👍"
     await update.message.reply_text(msg)
 
 async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -200,18 +183,18 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_owner = (int(user_id) == int(OWNER_ID))
 
-    # Send Reaction in background
+    # Send Reaction
     await send_smart_reaction(update, text, is_photo=bool(photo))
 
     system_prompt = MALE_AI_SYSTEM_PROMPT
     if is_owner:
-        system_prompt += f"\nNote: You are talking directly to Gaurav Sir."
+        system_prompt += f"\nNote: You are talking directly to your creator Gaurav Sir."
     else:
-        system_prompt += f"\nNote: You are talking to {user_name}."
+        system_prompt += f"\nNote: You are talking to user {user_name}."
 
     # 1. PHOTO HANDLER
     if photo:
-        status_msg = await update.message.reply_text("Haan bhai, photo dekh raha hoon... ek second de 🔍")
+        status_msg = await update.message.reply_text("Haan bhai, photo dekh raha hoon... 🔍")
         try:
             tg_file = await context.bot.get_file(photo[-1].file_id)
             img_bytes = await tg_file.download_as_bytearray()
@@ -220,25 +203,25 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if gemini_client:
                 res = gemini_client.models.generate_content(
                     model='gemini-2.5-flash',
-                    contents=[image, f"{system_prompt}\nUser Query: {text}\nExplain this photo."]
+                    contents=[image, f"{system_prompt}\nUser Query: {text}\nExplain this image clearly."]
                 )
                 await status_msg.delete()
-                if res.text:
+                if res and res.text:
                     await update.message.reply_text(clean_response_text(res.text))
                     return
             
             await status_msg.delete()
-            await update.message.reply_text("Bhai photo sahi se padh nahi paya, ek baar thodi clear photo bhej de.")
+            await update.message.reply_text("Bhai photo read karne ke liye GEMINI_API_KEY zaruri hai.")
             return
         except Exception as e:
-            await status_msg.edit_text(f"Error aaya bhai: {e}")
+            await status_msg.edit_text(f"Error aaya photo read karne me: {e}")
             return
 
-    # TEXT HANDLER
+    # 2. TEXT HANDLER
     if text:
-        reply = None
+        ai_reply = None
 
-        # 1. Try Gemini First (Fastest & Free)
+        # --- OPTION 1: GEMINI 2.5 FLASH (Primary API) ---
         if gemini_client:
             try:
                 res = gemini_client.models.generate_content(
@@ -246,38 +229,52 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     contents=f"{system_prompt}\nUser Query: {text}"
                 )
                 if res and res.text:
-                    reply = res.text
+                    ai_reply = res.text
             except Exception as e:
-                print(f"Gemini Error: {e}")
+                print(f"Gemini API Error: {e}")
 
-        # 2. Try Groq as Backup
-        if not reply and groq_client:
-            try:
-                completion = groq_client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": text}
-                    ],
-                    model="llama-3.3-70b-versatile",
-                    max_tokens=600,
-                    temperature=0.6
-                )
-                if completion.choices:
-                    reply = completion.choices[0].message.content
-            except Exception as e:
-                print(f"Groq Error: {e}")
+        # --- OPTION 2: GROQ MULTI-MODEL FALLBACK LIST ---
+        # Agar Gemini fail hua, toh ye 5 Groq models ek-ek karke try honge
+        groq_models = [
+            "llama-3.3-70b-versatile",    # Top Model
+            "llama-3.1-8b-instant",       # High-speed Backup
+            "mixtral-8x7b-32768",         # Stable Backup
+            "gemma2-9b-it",               # Alternative
+            "llama3-70b-8192"             # Final Backup
+        ]
 
-        # 3. Final Output
-        if reply:
-            await update.message.reply_text(clean_response_text(reply))
+        if not ai_reply and groq_client:
+            for model_name in groq_models:
+                try:
+                    completion = groq_client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": text}
+                        ],
+                        model=model_name,
+                        max_tokens=600,
+                        temperature=0.6
+                    )
+                    if completion.choices and completion.choices[0].message.content:
+                        ai_reply = completion.choices[0].message.content
+                        print(f"Groq Success with Model: {model_name}")
+                        break
+                except Exception as e:
+                    print(f"Groq Model Failed ({model_name}): {e}")
+                    continue
+
+        # --- FINAL RESPONSE DELIVERY ---
+        if ai_reply:
+            await update.message.reply_text(clean_response_text(ai_reply))
         else:
-            # Agar dono API temporary fail bhi hon, toh sensible response dega
-            local_reply = get_local_smart_reply(text)
-            if local_reply:
-                await update.message.reply_text(local_reply)
+            # Smart Local Chatter Backup (Agar saare APIs fail bhi hon)
+            t = text.lower().strip()
+            if any(w in t for w in ["hi", "hello", "hey", "hii"]):
+                await update.message.reply_text("Haan bhai! Aur bata, kya haal chaal?")
+            elif "kaise ho" in t:
+                await update.message.reply_text("Ekdam mast bhai! Tu bata, tera kya chal raha hai?")
             else:
-                await update.message.reply_text("Haan bhai! Awaaz aa rahi hai, bol kya baat hai?")
-    
+                await update.message.reply_text("Haan bhai, bol main sun raha hoon!")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -300,3 +297,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
