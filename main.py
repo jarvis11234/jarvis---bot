@@ -234,16 +234,24 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await status_msg.edit_text(f"Error aaya bhai: {e}")
             return
 
-    # 2. TEXT HANDLER
+    # TEXT HANDLER
     if text:
-        # First Check: Local Smart Reply (Instant Response without API delay)
-        local_reply = get_local_smart_reply(text)
-        if local_reply and not (GROQ_API_KEY or GEMINI_API_KEY):
-            await update.message.reply_text(local_reply)
-            return
+        reply = None
 
-        # Attempt 1: Groq API
-        if groq_client:
+        # 1. Try Gemini First (Fastest & Free)
+        if gemini_client:
+            try:
+                res = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=f"{system_prompt}\nUser Query: {text}"
+                )
+                if res and res.text:
+                    reply = res.text
+            except Exception as e:
+                print(f"Gemini Error: {e}")
+
+        # 2. Try Groq as Backup
+        if not reply and groq_client:
             try:
                 completion = groq_client.chat.completions.create(
                     messages=[
@@ -254,31 +262,22 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     max_tokens=600,
                     temperature=0.6
                 )
-                reply = completion.choices[0].message.content
-                if reply:
-                    await update.message.reply_text(clean_response_text(reply))
-                    return
+                if completion.choices:
+                    reply = completion.choices[0].message.content
             except Exception as e:
-                print(f"Groq Text Error: {e}")
+                print(f"Groq Error: {e}")
 
-        # Attempt 2: Gemini API
-        if gemini_client:
-            try:
-                res = gemini_client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=f"{system_prompt}\nUser Query: {text}"
-                )
-                if res.text:
-                    await update.message.reply_text(clean_response_text(res.text))
-                    return
-            except Exception as e:
-                print(f"Gemini Text Error: {e}")
-
-        # Attempt 3: Local Fallback (If API is completely dead/unconfigured)
-        if local_reply:
-            await update.message.reply_text(local_reply)
+        # 3. Final Output
+        if reply:
+            await update.message.reply_text(clean_response_text(reply))
         else:
-            await update.message.reply_text("Haan bhai! Samajh gaya. Bata aage kya karna hai?")
+            # Agar dono API temporary fail bhi hon, toh sensible response dega
+            local_reply = get_local_smart_reply(text)
+            if local_reply:
+                await update.message.reply_text(local_reply)
+            else:
+                await update.message.reply_text("Haan bhai! Awaaz aa rahi hai, bol kya baat hai?")
+    
 
 # ----------------------------------------------------
 # MAIN EXECUTION
