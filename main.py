@@ -7,7 +7,7 @@ import random
 from PIL import Image
 from flask import Flask
 from groq import Groq
-import google.generativeai as genai
+from google import genai
 from telegram import Update, ReactionTypeEmoji
 from telegram.ext import (
     ApplicationBuilder,
@@ -30,12 +30,7 @@ app = Flask(__name__)
 
 # API Clients Initialization
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Gemini Init Warning: {e}")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # ----------------------------------------------------
 # FORMAT CLEANER
@@ -65,33 +60,27 @@ def clean_response_text(text: str) -> str:
 # SMART MESSAGE REACTION FUNCTION
 # ----------------------------------------------------
 async def send_smart_reaction(update: Update, text: str, is_photo: bool):
-    """Message par context ke hisab se emoji reaction deta hai."""
     try:
-        # Standard Telegram Reactions
-        reaction_emoji = "👍"  # Default
-        
         text_lower = text.lower() if text else ""
-        
         if is_photo:
             reaction_emoji = random.choice(["👀", "👏", "🔥", "👍"])
-        elif any(word in text_lower for word in ["haha", "lol", "funny", "chutkule", "joke", "haha"]):
+        elif any(word in text_lower for word in ["hi", "hello", "hey"]):
+            reaction_emoji = "👍"
+        elif any(word in text_lower for word in ["haha", "lol", "joke"]):
             reaction_emoji = "😂"
-        elif any(word in text_lower for word in ["bhai", "bro", "dost", " मस्त", "op", "great", "awesome"]):
+        elif any(word in text_lower for word in ["bhai", "bro", "op", "great"]):
             reaction_emoji = "🔥"
-        elif any(word in text_lower for word in ["thanks", "dhanyawad", "thank you", "shukriya"]):
+        elif any(word in text_lower for word in ["thanks", "thank you"]):
             reaction_emoji = "❤️"
-        elif any(word in text_lower for word in ["bye", "gn", "good night", "so raha hu"]):
-            reaction_emoji = "🕊"
         else:
-            # 70% chance to react on normal messages so it feels natural and not spammy
             if random.random() < 0.7:
-                reaction_emoji = random.choice(["👍", "👌", "🔥", "🤔"])
+                reaction_emoji = random.choice(["👍", "👌", "🔥"])
             else:
                 return
 
         await update.message.set_reaction(reaction=[ReactionTypeEmoji(reaction_emoji)])
     except Exception as e:
-        print(f"Reaction Error (Non-critical): {e}")
+        print(f"Reaction Error: {e}")
 
 # ----------------------------------------------------
 # DATABASE & USAGE LIMITS
@@ -111,7 +100,7 @@ def init_db():
 
 def check_user_limit(user_id):
     if int(user_id) == int(OWNER_ID):
-        return True  # Unlimited for Gaurav Sir
+        return True
         
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -148,19 +137,19 @@ def check_user_limit(user_id):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Male AI Companion + Reaction Engine Online"
+    return "Male AI Companion Online"
 
 # ----------------------------------------------------
-# SYSTEM PROMPT (MALE AI PERSONA - NOVA COUNTERPART)
+# SYSTEM PROMPT
 # ----------------------------------------------------
 MALE_AI_SYSTEM_PROMPT = (
-    "You are a smart, confident, warm, and highly capable male AI companion (the male counterpart to Nova). "
+    "You are a smart, confident, warm, and highly capable male AI companion. "
     "Your tone is strictly MALE (use Hindi/Hinglish male grammar like: 'mai kar dunga', 'mai dekh raha hu', 'bol bhai', 'mai samajh gaya').\n\n"
     "Key Personality Rules:\n"
     "1. Gender Tone: Always speak as a male buddy/brother/friend. Never use female verbs.\n"
-    "2. Conversation Style: Relaxed, sharp, helpful, supportive, and natural. Speak like a cool guy friend who is always there to help.\n"
-    "3. Listener & Problem Solver: Listen carefully to what the user says and give direct, practical answers without robotic filler phrases.\n"
-    "4. Clean Formatting: NO LaTeX symbols, NO dollar signs ($), NO markdown asterisks (*). Plain clean text and simple bullet points (🔹) only."
+    "2. Conversation Style: Relaxed, sharp, helpful, supportive, and natural. Speak like a cool guy friend.\n"
+    "3. Respond to simple greetings like 'hi', 'hello', 'kya haal hai' naturally and warmly in Hinglish.\n"
+    "4. Clean Formatting: NO LaTeX symbols, NO dollar signs ($), NO markdown asterisks (*). Plain clean text only."
 )
 
 # ----------------------------------------------------
@@ -187,14 +176,14 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_owner = (int(user_id) == int(OWNER_ID))
 
-    # Send Reaction in background
+    # Reaction Send
     await send_smart_reaction(update, text, is_photo=bool(photo))
 
     system_prompt = MALE_AI_SYSTEM_PROMPT
     if is_owner:
-        system_prompt += f"\nNote: You are talking directly to your creator/owner Gaurav Sir."
+        system_prompt += f"\nNote: You are talking directly to Gaurav Sir."
     else:
-        system_prompt += f"\nNote: You are talking to user named {user_name}."
+        system_prompt += f"\nNote: You are talking to {user_name}."
 
     # 1. PHOTO HANDLER
     if photo:
@@ -204,24 +193,18 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             img_bytes = await tg_file.download_as_bytearray()
             image = Image.open(io.BytesIO(img_bytes))
             
-            prompt = f"{system_prompt}\nUser Query: {text}\nExplain or solve this photo in simple language with male tone."
+            if gemini_client:
+                res = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=[image, f"{system_prompt}\nUser Query: {text}\nExplain this photo."]
+                )
+                await status_msg.delete()
+                if res.text:
+                    await update.message.reply_text(clean_response_text(res.text))
+                    return
             
-            response_text = None
-            for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
-                try:
-                    model = genai.GenerativeModel(m_name)
-                    res = model.generate_content([prompt, image])
-                    if res and res.text:
-                        response_text = res.text
-                        break
-                except Exception:
-                    continue
-
             await status_msg.delete()
-            if response_text:
-                await update.message.reply_text(clean_response_text(response_text))
-            else:
-                await update.message.reply_text("Bhai photo thodi clear nahi lag rahi, ek baar dobara saaf karke bhej de.")
+            await update.message.reply_text("Bhai photo sahi se read nahi ho paayi, ek baar dobara bhej de.")
             return
         except Exception as e:
             await status_msg.edit_text(f"Error aaya bhai: {e}")
@@ -229,6 +212,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. TEXT HANDLER
     if text:
+        # First Try: Groq API
         if groq_client:
             try:
                 completion = groq_client.chat.completions.create(
@@ -241,27 +225,30 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     temperature=0.6
                 )
                 reply = completion.choices[0].message.content
-                await update.message.reply_text(clean_response_text(reply))
-                return
+                if reply:
+                    await update.message.reply_text(clean_response_text(reply))
+                    return
             except Exception as e:
                 print(f"Groq Error: {e}")
 
-        # Fallback to Gemini
-        response_text = None
-        for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
+        # Second Try: Gemini API (New SDK)
+        if gemini_client:
             try:
-                model = genai.GenerativeModel(m_name)
-                res = model.generate_content(f"{system_prompt}\nUser Query: {text}")
-                if res and res.text:
-                    response_text = res.text
-                    break
-            except Exception:
-                continue
+                res = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=f"{system_prompt}\nUser Query: {text}"
+                )
+                if res.text:
+                    await update.message.reply_text(clean_response_text(res.text))
+                    return
+            except Exception as e:
+                print(f"Gemini Error: {e}")
 
-        if response_text:
-            await update.message.reply_text(clean_response_text(response_text))
+        # Basic Fallback Reply for Greetings
+        if text.lower().strip() in ["hi", "hello", "hey", "hii"]:
+            await update.message.reply_text("Haan bhai! Aur bata, kya haal chaal?")
         else:
-            await update.message.reply_text("Ek baar dobara bolna bhai, samajh nahi aaya properly.")
+            await update.message.reply_text("Haan bhai, sun raha hoon. Ek baar phir se batana kya bol rahe the?")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
