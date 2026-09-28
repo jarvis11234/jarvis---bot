@@ -57,6 +57,30 @@ def clean_response_text(text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 # ----------------------------------------------------
+# SMART LOCAL CHAT FALLBACK (NO API DEPENDENCY)
+# ----------------------------------------------------
+def get_local_smart_reply(text: str) -> str:
+    """Agar API response na de, toh ye local reply karega taaki bot 'bahera' na lage."""
+    t = text.lower().strip()
+    
+    if t in ["hi", "hello", "hey", "hii", "helo", "hlo"]:
+        return random.choice([
+            "Haan bhai! Bol kya haal chaal?",
+            "Haan ji, bataiye kya chal raha hai?",
+            "Hello bhai! Bata kaise madad karun?"
+        ])
+    elif "kaise ho" in t or "kya haal" in t:
+        return "Main badhiya hoon bhai! Tu bata, tera kya chal raha hai?"
+    elif "kya kar rahe" in t or "kya kar raha" in t:
+        return "Bas bhai, yahan tere messages ka wait kar raha hoon! Bata kya kaam hai?"
+    elif "naam" in t:
+        return "Main tera AI buddy hoon bhai!"
+    elif "shukriya" in t or "thanks" in t or "thank you" in t:
+        return "Arre koi baat nahi bhai, hamesha hazir hoon! 👍"
+    
+    return None
+
+# ----------------------------------------------------
 # SMART MESSAGE REACTION FUNCTION
 # ----------------------------------------------------
 async def send_smart_reaction(update: Update, text: str, is_photo: bool):
@@ -64,13 +88,13 @@ async def send_smart_reaction(update: Update, text: str, is_photo: bool):
         text_lower = text.lower() if text else ""
         if is_photo:
             reaction_emoji = random.choice(["👀", "👏", "🔥", "👍"])
-        elif any(word in text_lower for word in ["hi", "hello", "hey"]):
+        elif any(word in text_lower for word in ["hi", "hello", "hey", "hii"]):
             reaction_emoji = "👍"
-        elif any(word in text_lower for word in ["haha", "lol", "joke"]):
+        elif any(word in text_lower for word in ["haha", "lol", "joke", "chutkula"]):
             reaction_emoji = "😂"
-        elif any(word in text_lower for word in ["bhai", "bro", "op", "great"]):
+        elif any(word in text_lower for word in ["bhai", "bro", "op", "great", "mast"]):
             reaction_emoji = "🔥"
-        elif any(word in text_lower for word in ["thanks", "thank you"]):
+        elif any(word in text_lower for word in ["thanks", "thank you", "dhanyawad"]):
             reaction_emoji = "❤️"
         else:
             if random.random() < 0.7:
@@ -148,7 +172,7 @@ MALE_AI_SYSTEM_PROMPT = (
     "Key Personality Rules:\n"
     "1. Gender Tone: Always speak as a male buddy/brother/friend. Never use female verbs.\n"
     "2. Conversation Style: Relaxed, sharp, helpful, supportive, and natural. Speak like a cool guy friend.\n"
-    "3. Respond to simple greetings like 'hi', 'hello', 'kya haal hai' naturally and warmly in Hinglish.\n"
+    "3. Respond to casual greetings and chatter instantly and warmly in Hinglish.\n"
     "4. Clean Formatting: NO LaTeX symbols, NO dollar signs ($), NO markdown asterisks (*). Plain clean text only."
 )
 
@@ -176,7 +200,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_owner = (int(user_id) == int(OWNER_ID))
 
-    # Reaction Send
+    # Send Reaction in background
     await send_smart_reaction(update, text, is_photo=bool(photo))
 
     system_prompt = MALE_AI_SYSTEM_PROMPT
@@ -204,7 +228,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return
             
             await status_msg.delete()
-            await update.message.reply_text("Bhai photo sahi se read nahi ho paayi, ek baar dobara bhej de.")
+            await update.message.reply_text("Bhai photo sahi se padh nahi paya, ek baar thodi clear photo bhej de.")
             return
         except Exception as e:
             await status_msg.edit_text(f"Error aaya bhai: {e}")
@@ -212,7 +236,13 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. TEXT HANDLER
     if text:
-        # First Try: Groq API
+        # First Check: Local Smart Reply (Instant Response without API delay)
+        local_reply = get_local_smart_reply(text)
+        if local_reply and not (GROQ_API_KEY or GEMINI_API_KEY):
+            await update.message.reply_text(local_reply)
+            return
+
+        # Attempt 1: Groq API
         if groq_client:
             try:
                 completion = groq_client.chat.completions.create(
@@ -229,9 +259,9 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(clean_response_text(reply))
                     return
             except Exception as e:
-                print(f"Groq Error: {e}")
+                print(f"Groq Text Error: {e}")
 
-        # Second Try: Gemini API (New SDK)
+        # Attempt 2: Gemini API
         if gemini_client:
             try:
                 res = gemini_client.models.generate_content(
@@ -242,13 +272,13 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(clean_response_text(res.text))
                     return
             except Exception as e:
-                print(f"Gemini Error: {e}")
+                print(f"Gemini Text Error: {e}")
 
-        # Basic Fallback Reply for Greetings
-        if text.lower().strip() in ["hi", "hello", "hey", "hii"]:
-            await update.message.reply_text("Haan bhai! Aur bata, kya haal chaal?")
+        # Attempt 3: Local Fallback (If API is completely dead/unconfigured)
+        if local_reply:
+            await update.message.reply_text(local_reply)
         else:
-            await update.message.reply_text("Haan bhai, sun raha hoon. Ek baar phir se batana kya bol rahe the?")
+            await update.message.reply_text("Haan bhai! Samajh gaya. Bata aage kya karna hai?")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -271,4 +301,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
