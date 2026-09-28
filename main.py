@@ -3,11 +3,12 @@ import io
 import sqlite3
 import re
 import threading
+import random
 from PIL import Image
 from flask import Flask
 from groq import Groq
 import google.generativeai as genai
-from telegram import Update
+from telegram import Update, ReactionTypeEmoji
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -23,11 +24,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OWNER_ID = 8298044480  # Gaurav Sir
-DB_FILE = "gaurav_friendly_clone.db"
+DB_FILE = "male_ai_buddy.db"
 
 app = Flask(__name__)
 
-# API Clients Initialise
+# API Clients Initialization
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 if GEMINI_API_KEY:
@@ -37,7 +38,7 @@ if GEMINI_API_KEY:
         print(f"Gemini Init Warning: {e}")
 
 # ----------------------------------------------------
-# FORMAT CLEANER (No Dollars, No Stars)
+# FORMAT CLEANER
 # ----------------------------------------------------
 def clean_response_text(text: str) -> str:
     if not text:
@@ -59,6 +60,38 @@ def clean_response_text(text: str) -> str:
             cleaned_lines.append(line)
             
     return "\n".join(cleaned_lines).strip()
+
+# ----------------------------------------------------
+# SMART MESSAGE REACTION FUNCTION
+# ----------------------------------------------------
+async def send_smart_reaction(update: Update, text: str, is_photo: bool):
+    """Message par context ke hisab se emoji reaction deta hai."""
+    try:
+        # Standard Telegram Reactions
+        reaction_emoji = "👍"  # Default
+        
+        text_lower = text.lower() if text else ""
+        
+        if is_photo:
+            reaction_emoji = random.choice(["👀", "👏", "🔥", "👍"])
+        elif any(word in text_lower for word in ["haha", "lol", "funny", "chutkule", "joke", "haha"]):
+            reaction_emoji = "😂"
+        elif any(word in text_lower for word in ["bhai", "bro", "dost", " मस्त", "op", "great", "awesome"]):
+            reaction_emoji = "🔥"
+        elif any(word in text_lower for word in ["thanks", "dhanyawad", "thank you", "shukriya"]):
+            reaction_emoji = "❤️"
+        elif any(word in text_lower for word in ["bye", "gn", "good night", "so raha hu"]):
+            reaction_emoji = "🕊"
+        else:
+            # 70% chance to react on normal messages so it feels natural and not spammy
+            if random.random() < 0.7:
+                reaction_emoji = random.choice(["👍", "👌", "🔥", "🤔"])
+            else:
+                return
+
+        await update.message.set_reaction(reaction=[ReactionTypeEmoji(reaction_emoji)])
+    except Exception as e:
+        print(f"Reaction Error (Non-critical): {e}")
 
 # ----------------------------------------------------
 # DATABASE & USAGE LIMITS
@@ -115,16 +148,29 @@ def check_user_limit(user_id):
 # ----------------------------------------------------
 @app.route('/')
 def home():
-    return "Gaurav Proper Persona Engine Online"
+    return "Male AI Companion + Reaction Engine Online"
 
 # ----------------------------------------------------
-# BOT HANDLERS & PERSONA
+# SYSTEM PROMPT (MALE AI PERSONA - NOVA COUNTERPART)
+# ----------------------------------------------------
+MALE_AI_SYSTEM_PROMPT = (
+    "You are a smart, confident, warm, and highly capable male AI companion (the male counterpart to Nova). "
+    "Your tone is strictly MALE (use Hindi/Hinglish male grammar like: 'mai kar dunga', 'mai dekh raha hu', 'bol bhai', 'mai samajh gaya').\n\n"
+    "Key Personality Rules:\n"
+    "1. Gender Tone: Always speak as a male buddy/brother/friend. Never use female verbs.\n"
+    "2. Conversation Style: Relaxed, sharp, helpful, supportive, and natural. Speak like a cool guy friend who is always there to help.\n"
+    "3. Listener & Problem Solver: Listen carefully to what the user says and give direct, practical answers without robotic filler phrases.\n"
+    "4. Clean Formatting: NO LaTeX symbols, NO dollar signs ($), NO markdown asterisks (*). Plain clean text and simple bullet points (🔹) only."
+)
+
+# ----------------------------------------------------
+# BOT HANDLERS
 # ----------------------------------------------------
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     msg = (
-        f"Haan {user_name} bhai, bataiye kaise hain? 😊\n\n"
-        f"Aap aaram se apni baat boliye ya koi doubt ho toh bhej dijiye, main sun raha hoon."
+        f"Haan {user_name}! Kya haal hai bhai? 😊\n\n"
+        f"Main hoon tera AI buddy. Bata kya chal raha hai, koi kaam ho ya waise hi baat karni ho, bol main sun raha hoon! 👍"
     )
     await update.message.reply_text(msg)
 
@@ -141,23 +187,14 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_owner = (int(user_id) == int(OWNER_ID))
 
-    # GAURAV SIR'S REAL MATURE PERSONA
+    # Send Reaction in background
+    await send_smart_reaction(update, text, is_photo=bool(photo))
+
+    system_prompt = MALE_AI_SYSTEM_PROMPT
     if is_owner:
-        system_prompt = (
-            "You are Gaurav Sir's AI representative speaking directly to Gaurav Sir (your owner). "
-            "Be ultra-loyal, sharp, direct, helpful, and polite. Answer immediately without fluff or fake laughter. "
-            "Strict Rules: NO dollar signs ($), NO LaTeX, NO markdown asterisks (*). Plain text and simple bullets (🔹) only."
-        )
+        system_prompt += f"\nNote: You are talking directly to your creator/owner Gaurav Sir."
     else:
-        system_prompt = (
-            f"You are Gaurav Sir talking to a student/friend named {user_name}. "
-            "Personality & Communication Rules:\n"
-            "1. Speak naturally, respectfully, and warmly in Hinglish.\n"
-            "2. NEVER use fake laughing words like 'haha', 'hehe', or repetitive filler phrases. Keep the conversation real and mature.\n"
-            "3. Be a patient listener: Pay close attention to what the user is saying, answer thoughtfully and accurately.\n"
-            "4. Use tasteful, minimal emojis only when relevant (e.g. 😊, 👍, 📚).\n"
-            "Strict Formatting: NO dollar signs ($), NO LaTeX math notation, NO markdown asterisks (*). Plain text and clean bullet points (🔹) only."
-        )
+        system_prompt += f"\nNote: You are talking to user named {user_name}."
 
     # 1. PHOTO HANDLER
     if photo:
@@ -167,7 +204,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             img_bytes = await tg_file.download_as_bytearray()
             image = Image.open(io.BytesIO(img_bytes))
             
-            prompt = f"{system_prompt}\nUser Query: {text}\nSolve or explain this photo step-by-step cleanly."
+            prompt = f"{system_prompt}\nUser Query: {text}\nExplain or solve this photo in simple language with male tone."
             
             response_text = None
             for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
@@ -184,10 +221,10 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if response_text:
                 await update.message.reply_text(clean_response_text(response_text))
             else:
-                await update.message.reply_text("Bhai photo thodi clear nahi hai, ek baar dobara saaf karke bhej de.")
+                await update.message.reply_text("Bhai photo thodi clear nahi lag rahi, ek baar dobara saaf karke bhej de.")
             return
         except Exception as e:
-            await status_msg.edit_text(f"Error aaya: {e}")
+            await status_msg.edit_text(f"Error aaya bhai: {e}")
             return
 
     # 2. TEXT HANDLER
@@ -207,9 +244,9 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(clean_response_text(reply))
                 return
             except Exception as e:
-                print(f"Groq Text Error: {e}")
+                print(f"Groq Error: {e}")
 
-        # Fallback to Gemini for text
+        # Fallback to Gemini
         response_text = None
         for m_name in ["models/gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash"]:
             try:
@@ -224,7 +261,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if response_text:
             await update.message.reply_text(clean_response_text(response_text))
         else:
-            await update.message.reply_text("Arre bhai, ek baar dobara bolna, samajh nahi aaya properly.")
+            await update.message.reply_text("Ek baar dobara bolna bhai, samajh nahi aaya properly.")
 
 # ----------------------------------------------------
 # MAIN EXECUTION
@@ -247,4 +284,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-                        
+    
